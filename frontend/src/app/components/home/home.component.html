@@ -1,0 +1,165 @@
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+  <!-- ====== KHU VỰC ====== -->
+  <div class="lg:col-span-2 bg-white shadow-md rounded-xl p-4">
+    <h2 class="font-bold text-lg mb-3">📍 Khu vực</h2>
+    <ul class="space-y-2">
+      <li *ngFor="let area of areas"
+          (click)="selectArea(area)"
+          [class.text-blue-600]="selectedArea?.id === area.id"
+          class="cursor-pointer hover:text-blue-500">
+        {{ area.name }}
+      </li>
+    </ul>
+  </div>
+
+  <!-- ====== VIDEO LIVE / PLAYBACK ====== -->
+  <div class="lg:col-span-7 bg-white shadow-md rounded-xl p-4 flex flex-col">
+    <div class="border-b mb-3 flex gap-6">
+      <button (click)="selectTab('live')"
+              [class.border-b-2]="selectedTab==='live'"
+              class="pb-1 font-semibold hover:text-blue-600">
+        🎥 Video Live
+      </button>
+      <button (click)="selectTab('playback')"
+              [class.border-b-2]="selectedTab==='playback'"
+              class="pb-1 font-semibold hover:text-blue-600">
+        ⏪ Xem lại
+      </button>
+    </div>
+
+    <div *ngIf="isLoadingPlayBack"
+         class="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center rounded-xl z-20">
+      <p class="text-lg font-semibold animate-pulse">⏳ Đang tải video từ NVR...</p>
+    </div>
+
+    <div class="bg-gray-100 rounded-lg overflow-y-auto flex-1">
+      <app-video-feed *ngIf="selectedTab==='live' && selectedArea" [areaId]="selectedArea.id"></app-video-feed>
+
+      <!-- Playback -->
+      <div *ngIf="selectedTab==='playback'" class="p-4">
+        <h3 class="font-bold text-lg mb-3">🎥 Danh sách video đã ghi lại</h3>
+
+        <div *ngIf="playbackVideos.length; else noVideos"
+             class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div *ngFor="let v of playbackVideos"
+               (click)="playVideo(v)"
+               class="bg-white rounded-lg shadow hover:shadow-lg p-3 cursor-pointer transition">
+            <div class="font-semibold truncate">{{ v.name || 'Unknown' }}</div>
+            <div class="text-sm text-gray-500">{{ v.label }}</div>
+            <div class="text-xs text-gray-400">{{ v.time | date:'short' }}</div>
+            <img *ngIf="v.image_url" [src]="getImageUrl(v)" class="w-full h-32 object-cover rounded mt-2" />
+          </div>
+        </div>
+
+        <ng-template #noVideos>
+          <p class="text-gray-500 text-sm text-center mt-6">
+            ⚠️ Hiện chưa có video nào được lưu trong hệ thống.
+          </p>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== SỰ KIỆN GHI NHẬN ====== -->
+  <div class="lg:col-span-3 bg-white shadow-md rounded-xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-bold text-lg">📋 Sự kiện ghi nhận</h2>
+      <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" [(ngModel)]="soundEnabled" class="accent-blue-600" />
+        Âm thanh cảnh báo
+      </label>
+    </div>
+
+    <div class="space-y-3 max-h-[500px] overflow-y-auto">
+      <div *ngIf="events.length; else noEvents">
+        <div *ngFor="let e of events"
+             class="border rounded p-3 shadow-sm hover:bg-gray-50 cursor-pointer"
+             (click)="openEvent(e)">
+          <div class="flex gap-3 items-center">
+            <img *ngIf="e.image_url" [src]="getImageUrl(e)"
+                 class="w-16 h-16 object-cover rounded border" />
+            <div>
+              <div class="font-semibold">{{ e.name || 'Không rõ' }}</div>
+              <div class="text-xs text-gray-500">Mã NV: {{ e.person_id }}</div>
+            </div>
+          </div>
+          <div class="text-xs mt-2">
+            <span class="font-semibold">Ghi nhận:</span> {{ e.label }} lúc {{ e.time | date:'short' }}
+          </div>
+          <div class="text-xs mt-2">
+            <span class="font-semibold">Khu vực:</span> {{ e.area_name || e.area_id }}
+          </div>
+        </div>
+      </div>
+
+      <ng-template #noEvents>
+        <p class="text-gray-500 text-sm text-center mt-6">
+          ⚠️ Hiện chưa có sự kiện nào được ghi nhận tại khu vực này.
+        </p>
+      </ng-template>
+    </div>
+  </div>
+  <!-- ====== CHI TIẾT SỰ KIỆN ====== -->
+  <div *ngIf="selectedEvent" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-lg w-[700px] max-h-[90vh] overflow-y-auto p-6 relative">
+      <!-- Nút đóng -->
+      <button (click)="closeEvent()"
+              class="absolute top-3 right-3 text-gray-500 hover:text-gray-700 text-xl">✖</button>
+
+      <h2 class="text-lg font-bold mb-4 text-gray-700 flex items-center gap-2">
+        <i class="fa-solid fa-circle-info text-blue-500"></i> Chi tiết sự kiện
+      </h2>
+
+      <!-- Thông tin cơ bản -->
+      <div class="space-y-2 text-sm text-gray-700 mb-4">
+        <div><span class="font-semibold">👤 Nhân viên:</span> {{ selectedEvent.name || 'Không rõ' }}</div>
+        <div><span class="font-semibold">🏷️ Mã NV:</span> {{ selectedEvent.person_id || 'N/A' }}</div>
+        <div><span class="font-semibold">📍 Khu vực:</span> {{ selectedEvent.area_name || selectedEvent.area_id }}</div>
+        <div><span class="font-semibold">🕒 Thời gian:</span> {{ selectedEvent.time | date:'short' }}</div>
+        <div><span class="font-semibold">🚨 Loại sự kiện:</span> {{ selectedEvent.label }}</div>
+      </div>
+
+      <!-- Nút chuyển đổi giữa Ảnh / Video -->
+      <div class="flex items-center justify-center gap-3 mb-4">
+        <button (click)="mediaView = 'image'"
+                [ngClass]="mediaView === 'image' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
+                class="px-4 py-2 rounded-lg font-medium transition-all duration-200">
+          🖼 Ảnh
+        </button>
+        <button (click)="mediaView = 'video'"
+                [ngClass]="mediaView === 'video' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
+                class="px-4 py-2 rounded-lg font-medium transition-all duration-200">
+          🎥 Video
+        </button>
+      </div>
+
+      <!-- Nội dung hiển thị -->
+      <div class="relative w-full rounded-lg border shadow-sm bg-black/5 flex items-center justify-center">
+        <!-- Hiển thị ảnh -->
+        <img *ngIf="mediaView === 'image' && selectedEvent.image_url"
+            [src]="getImageUrl(selectedEvent)"
+            class="max-h-[400px] rounded-lg object-contain" />
+
+        <div *ngIf="mediaView === 'image' && !selectedEvent.image_url"
+            class="text-gray-500 italic py-12">⚠️ Không có ảnh sự kiện</div>
+
+        <!-- Hiển thị video -->
+        <video *ngIf="mediaView === 'video' && selectedEvent.video_url"
+              [src]="safeVideoUrl" controls autoplay
+              class="max-h-[400px] w-full rounded-lg border bg-black"></video>
+
+        <div *ngIf="mediaView === 'video' && !selectedEvent.video_url"
+            class="text-gray-500 italic py-12">⚠️ Không có video sự kiện</div>
+      </div>
+
+      <!-- Footer -->
+      <div class="flex justify-end mt-6">
+        <button (click)="closeEvent()"
+                class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition">
+          Đóng
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>

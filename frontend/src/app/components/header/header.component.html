@@ -1,0 +1,66 @@
+<header class="bg-gradient-to-r from-red-700 to-red-600 text-white shadow-lg fixed top-0 left-0 right-0 z-50">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between items-center py-3">
+
+      <!-- 🔷 Logo -->
+      <div class="flex items-center space-x-3 cursor-pointer select-none" routerLink="/">
+        <img src="assets/logo.jpg" alt="Cholimex Surveillance"
+             class="h-10 w-10 object-contain drop-shadow-lg transition-transform duration-300 hover:scale-105" />
+        <h1 class="text-lg sm:text-xl lg:text-2xl font-bold tracking-wide">
+          Hệ thống Camera Trực Tuyến
+        </h1>
+      </div>
+
+      <!-- 🔒 Logged In -->
+      <div *ngIf="auth.isLoggedIn(); else loginLink" class="relative">
+        <button (click)="toggleDropdown()"
+                class="flex items-center gap-2 focus:outline-none hover:opacity-90">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-yellow-400" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M5.121 17.804A9 9 0 1118.364 4.561a9 9 0 01-13.243 13.243z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span class="text-sm italic text-yellow-300 whitespace-nowrap">
+            {{ getUsername() }}
+          </span>
+        </button>
+
+        <!-- 🔽 Dropdown -->
+        <div *ngIf="dropdownOpen"
+             class="absolute right-0 mt-3 w-56 bg-white text-gray-800 rounded-xl shadow-2xl overflow-hidden animate-fade-in">
+          <ng-container *ngIf="hasPermission('VIEW_PLAYBACKLOG')">
+            <a routerLink="/playback" class="block px-4 py-2 hover:bg-gray-100">🎥 Playback & Logs</a>
+          </ng-container>
+
+          <ng-container *ngIf="hasPermission('EVENT-ALARM')">
+            <a routerLink="/event-alarm" class="block px-4 py-2 hover:bg-gray-100">⚙️ Event & Alarm Config</a>
+          </ng-container>
+
+          <ng-container *ngIf="hasPermission('MANAGE_EMPLOYEES')">
+            <a routerLink="/manage-employees" class="block px-4 py-2 hover:bg-gray-100">👥 Manage Employees</a>
+          </ng-container>
+
+          <ng-container *ngIf="hasPermission('MANAGE_SYSTEM')">
+            <a routerLink="/admin-manager" class="block px-4 py-2 hover:bg-gray-100">🧰 System Manager</a>
+            <a routerLink="/admin-permission" class="block px-4 py-2 hover:bg-gray-100">🔐 Permission Settings</a>
+          </ng-container>
+
+          <button (click)="logout()"
+                  class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600 font-medium">
+            🚪 Logout
+          </button>
+        </div>
+      </div>
+
+      <!-- 🚫 Not Logged -->
+      <ng-template #loginLink>
+        <a routerLink="/login"
+           class="bg-yellow-400 hover:bg-yellow-500 text-red-700 font-semibold px-4 py-2 rounded-lg shadow">
+          Sign In
+        </a>
+      </ng-template>
+    </div>
+  </div>
+</header>

@@ -1,0 +1,122 @@
+<div class="flex flex-col h-[calc(100vh-6rem)] bg-gray-50 rounded-2xl shadow border overflow-hidden">
+
+  <!-- ===== HEADER (giống Playback Toolbar) ===== -->
+  <div
+    class="flex flex-wrap justify-between items-center gap-4 bg-white border-b shadow-sm p-4 sticky top-0 z-20 rounded-t-2xl">
+
+    <!-- LEFT: Title + Filters -->
+    <div class="flex flex-wrap items-center gap-3">
+      <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+        <i class="fas fa-list text-green-500"></i>
+        Danh sách sự kiện
+      </h2>
+
+      <!-- Bộ lọc -->
+      <input type="date"
+             [(ngModel)]="selectedDate"
+             (change)="filterLogs()"
+             class="border px-3 py-1 rounded-lg text-sm text-gray-700 focus:ring focus:ring-blue-300 transition" />
+
+      <select [(ngModel)]="selectedArea"
+              (change)="filterLogs()"
+              class="border px-3 py-1 rounded-lg text-sm text-gray-700 focus:ring focus:ring-blue-300 transition">
+        <option value="">Tất cả khu vực</option>
+        <option *ngFor="let area of areaOptions" [value]="area">{{ area }}</option>
+      </select>
+
+      <select [(ngModel)]="selectedEvent"
+              (change)="filterLogs()"
+              class="border px-3 py-1 rounded-lg text-sm text-gray-700 focus:ring focus:ring-blue-300 transition">
+        <option value="">Tất cả sự kiện</option>
+        <option *ngFor="let e of eventOptions" [value]="e">{{ e }}</option>
+      </select>
+    </div>
+
+    <!-- RIGHT: Hành động -->
+    <div class="flex items-center gap-2">
+      <button (click)="exportExcel()"
+              class="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm transition">
+        <i class="fas fa-file-excel"></i> Xuất Excel
+      </button>
+
+      <button (click)="deleteAreaLogs()"
+              [disabled]="!selectedArea"
+              class="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm transition disabled:opacity-60">
+        <i class="fas fa-trash"></i> Xóa khu vực
+      </button>
+
+      <button (click)="deleteAllLogs()"
+              class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-sm transition">
+        <i class="fas fa-trash-alt"></i> Xóa tất cả
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== TABLE SECTION ===== -->
+  <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
+    <div class="bg-white rounded-2xl shadow border overflow-hidden">
+      <table class="w-full text-sm border-collapse">
+        <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
+          <tr>
+            <th class="p-2 text-left w-[5%]">#</th>
+            <th class="p-2 text-left w-[15%]">Camera</th>
+            <th class="p-2 text-left w-[20%]">Sự kiện</th>
+            <th class="p-2 text-left w-[20%]">Thời gian</th>
+            <th class="p-2 text-left w-[15%]">Khu vực</th>
+            <th class="p-2 text-left w-[15%]">Ảnh</th>
+            <th class="p-2 text-center w-[10%]">Hành động</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr *ngFor="let log of paginatedLogs; let i = index"
+              (click)="viewDetail(log)"
+              class="hover:bg-blue-50 transition cursor-pointer border-b">
+            <td class="p-2 text-gray-700">{{ (currentPage - 1) * pageSize + i + 1 }}</td>
+            <td class="p-2 text-gray-700">{{ log.camera_id }}</td>
+            <td class="p-2 font-semibold text-blue-600">{{ log.label }}</td>
+            <td class="p-2 text-gray-700">{{ log.time | date:'short' }}</td>
+            <td class="p-2 text-gray-700">{{ log.area_name || '-' }}</td>
+            <td class="p-2">
+              <img *ngIf="log.image_url"
+                   [src]="log.image_url"
+                   class="w-14 h-14 object-cover rounded-lg border shadow-sm" />
+            </td>
+            <td class="p-2 text-center">
+              <button (click)="deleteLog(log.id, $event)"
+                      class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded-lg text-xs shadow-sm transition">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Empty -->
+      <div *ngIf="!filteredLogs.length"
+           class="text-gray-500 text-center py-6 italic">
+        ⚠️ Không có log nào trong thời gian này.
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div
+      class="mt-4 bg-white border shadow-sm rounded-2xl py-3 flex justify-center items-center gap-4">
+      <button (click)="changePage(currentPage - 1)"
+              [disabled]="currentPage === 1"
+              class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm transition disabled:opacity-50">
+        ◀
+      </button>
+
+      <span class="text-gray-700 text-sm">
+        Trang {{ currentPage }} / {{ totalPages }}
+      </span>
+
+      <button (click)="changePage(currentPage + 1)"
+              [disabled]="currentPage === totalPages"
+              class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm transition disabled:opacity-50">
+        ▶
+      </button>
+    </div>
+  </div>
+</div>

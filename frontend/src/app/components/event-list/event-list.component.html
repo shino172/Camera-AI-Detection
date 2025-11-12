@@ -1,0 +1,80 @@
+<div class="pt-16 px-4">
+  <div class="flex gap-2 mb-4">
+    <button (click)="activeTab='attendance'"
+            [class.bg-blue-600]="activeTab==='attendance'"
+            [class.text-white]="activeTab==='attendance'"
+            class="px-4 py-2 rounded shadow border relative">
+      📋 Attendance
+      <span class="ml-1 text-xs bg-gray-200 px-2 py-0.5 rounded-full">
+        {{ attendanceEvents.length }}
+      </span>
+    </button>
+    <button (click)="activeTab='smoking'"
+            [class.bg-blue-600]="activeTab==='smoking'"
+            [class.text-white]="activeTab==='smoking'"
+            class="px-4 py-2 rounded shadow border relative">
+      🚭 Smoking
+      <span class="ml-1 text-xs bg-gray-200 px-2 py-0.5 rounded-full">
+        {{ smokingEvents.length }}
+      </span>
+    </button>
+
+    <button (click)="deleteAllEvents()"
+      class="ml-1 text-xs bg-red-500 text-white px-4 py-2 rounded-full shadow border relative">
+    🗑️ Xoá tất cả
+    </button>
+  </div>
+
+  <div *ngIf="activeTab==='attendance'">
+    <h2 class="text-lg font-bold mb-2">📋 Attendance</h2>
+    <div *ngFor="let e of attendancePageData"
+          [attr.id]="'event-' + e.id"
+          class="border rounded p-3 mb-3 shadow bg-green-50 hover:bg-green-100 transition">
+      <p><b>⏰ Thời gian:</b> {{ convertToLocalTime(e.time)  }}</p>
+      <p><b>👤 Tên nhân viên:</b> {{ e.name }}</p>
+      <p><b>🆔 Mã NV:</b> {{ e.person_id }}</p>
+      <p><b>📌 Hành động:</b> {{ e.label }}, tại khu vực: {{ e.camera_id }} </p>
+
+      <div class="mt-2 flex gap-2">
+        <button (click)="deleteEvent(e.id)" class="bg-red-500 text-white px-3 py-1 rounded">🗑️ Xoá</button>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center mt-2">
+      <button (click)="changePage('attendance', -1)"
+              [disabled]="attendancePage===1"
+              class="px-3 py-1 rounded border bg-gray-100 disabled:opacity-50">⬅️ Trước</button>
+      <span>Trang {{attendancePage}} / {{attendanceTotalPages}}</span>
+      <button (click)="changePage('attendance', 1)"
+              [disabled]="attendancePage===attendanceTotalPages"
+              class="px-3 py-1 rounded border bg-gray-100 disabled:opacity-50">Tiếp ➡️</button>
+    </div>
+  </div>
+
+  <div *ngIf="activeTab==='smoking'">
+    <h2 class="text-lg font-bold mb-2">🚭 Smoking Detection</h2>
+    <div *ngFor="let e of smokingPageData"
+          [attr.id]="'event-' + e.id"
+          class="border rounded p-3 mb-3 shadow bg-red-50 hover:bg-red-100 transition">
+      <p><b>⏰ Thời gian:</b> {{ convertToLocalTime(e.time) }}</p>
+      <p><b>👤 Tên nhân viên:</b> {{ e.name }}</p>
+      <!-- <p><b>🆔 Mã NV:</b> {{ e.person_id }}</p> -->
+      <p><b>📌 Hành động:</b> {{ e.label }}, tại khu vực: {{ e.camera_id }}</p>
+      <!-- <p><b>📌 Khu vực:</b> {{ e.camera_id }}</p> -->
+
+      <div class="mt-2 flex gap-2">
+        <button (click)="deleteEvent(e.id)" class="bg-red-500 text-white px-3 py-1 rounded">🗑️ Xoá</button>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center mt-2">
+      <button (click)="changePage('smoking', -1)"
+              [disabled]="smokingPage===1"
+              class="px-3 py-1 rounded border bg-gray-100 disabled:opacity-50">⬅️ Trước</button>
+      <span>Trang {{smokingPage}} / {{smokingTotalPages}}</span>
+      <button (click)="changePage('smoking', 1)"
+              [disabled]="smokingPage===smokingTotalPages"
+              class="px-3 py-1 rounded border bg-gray-100 disabled:opacity-50">Tiếp ➡️</button>
+    </div>
+  </div>
+</div>

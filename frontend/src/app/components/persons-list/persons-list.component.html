@@ -1,0 +1,142 @@
+<div class="flex bg-gray-50 rounded-2xl overflow-hidden shadow-lg border border-gray-200 h-[calc(85vh-4rem)]">
+
+  <!-- ===================== SIDEBAR DANH SÁCH (TRÁI) ===================== -->
+  <aside class="w-1/3 bg-white border-r flex flex-col h-full">
+    <!-- Header -->
+    <div class="p-4 border-b flex justify-between items-center bg-gray-50">
+      <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+        👥 Danh sách nhân viên
+      </h2>
+      <button
+        (click)="createNewPerson()"
+        class="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm transition">
+        ➕ Thêm
+      </button>
+    </div>
+
+    <!-- Danh sách nhân viên có scroll riêng -->
+    <div class="flex-1 overflow-y-auto no-scrollbar fade-scroll">
+      <ul class="divide-y">
+        <li *ngFor="let p of persons"
+            (click)="selectPerson(p)"
+            [class.bg-blue-50]="selectedPerson?.person_id === p.person_id"
+            class="cursor-pointer px-4 py-3 flex items-center gap-3 hover:bg-blue-100 transition border-b last:border-b-0">
+          <img *ngIf="p.avatar; else defaultAvatar"
+               [src]="p.avatar"
+               class="w-10 h-10 rounded-full object-cover border shadow-sm">
+          <ng-template #defaultAvatar>
+            <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
+              <i class="fas fa-user"></i>
+            </div>
+          </ng-template>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-gray-800 truncate">{{ p.name }}</div>
+            <div class="text-xs text-gray-500 truncate">{{ p.department || 'Chưa có phòng ban' }}</div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </aside>
+
+  <!-- ===================== FORM CHI TIẾT (PHẢI) ===================== -->
+  <main class="flex-1 bg-gray-50 p-6 overflow-y-auto no-scrollbar h-full">
+    <ng-container *ngIf="selectedPerson; else noSelection">
+      <div class="bg-white rounded-2xl shadow-md p-6 space-y-6 border border-gray-100 h-full animate-fadeIn">
+        <!-- Header -->
+        <div class="flex items-center gap-6 border-b pb-4">
+          <!-- Avatar -->
+          <div class="relative group">
+            <img
+              [src]="previewImage || selectedPerson.avatar || 'assets/default-avatar.png'"
+              class="w-28 h-28 rounded-full object-cover border shadow cursor-pointer group-hover:opacity-80 transition"
+              (click)="triggerAvatarUpload()" />
+
+            <!-- Overlay camera -->
+            <div
+              class="absolute inset-0 bg-black bg-opacity-40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer"
+              (click)="triggerAvatarUpload()">
+              <i class="fas fa-camera text-white text-xl"></i>
+            </div>
+
+            <input
+              type="file"
+              accept="image/*"
+              #avatarInput
+              class="hidden"
+              (change)="onAvatarSelected($event)">
+          </div>
+
+          <div>
+            <input [(ngModel)]="selectedPerson.name"
+                   class="text-2xl font-semibold text-gray-800 border-none outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1"
+                   placeholder="Tên nhân viên" />
+            <div class="text-sm text-gray-500 mt-1">
+              ID: {{ selectedPerson.person_id || 'Mới' }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Thông tin -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-gray-500 mb-1">📞 Số điện thoại</label>
+            <input [(ngModel)]="selectedPerson.phone"
+                   placeholder="Nhập số điện thoại"
+                   class="w-full border rounded-lg p-2 focus:ring focus:ring-blue-200" />
+          </div>
+          <div>
+            <label class="block text-sm text-gray-500 mb-1">🏢 Phòng ban</label>
+            <input [(ngModel)]="selectedPerson.department"
+                   placeholder="Phòng ban"
+                   class="w-full border rounded-lg p-2 focus:ring focus:ring-blue-200" />
+          </div>
+          <div>
+            <label class="block text-sm text-gray-500 mb-1">💼 Chức vụ</label>
+            <input [(ngModel)]="selectedPerson.position"
+                   placeholder="Chức vụ"
+                   class="w-full border rounded-lg p-2 focus:ring focus:ring-blue-200" />
+          </div>
+          <!-- <div>
+            <label class="block text-sm text-gray-500 mb-1">📧 Email</label>
+            <input [(ngModel)]="selectedPerson.email"
+                   placeholder="Nhập email"
+                   class="w-full border rounded-lg p-2 focus:ring focus:ring-blue-200" />
+          </div> -->
+        </div>
+
+        <!-- Upload -->
+        <div>
+          <label class="block text-sm text-gray-500 mb-2">🖼 Ảnh đại diện</label>
+          <input type="file" (change)="onImageSelected($event)"
+                 class="w-full text-sm text-gray-700 border rounded-lg p-2 bg-gray-50 focus:ring focus:ring-blue-200">
+        </div>
+
+        <!-- Footer -->
+        <div class="flex justify-between items-center border-t pt-4">
+          <p class="text-sm text-gray-400">
+            Ngày tạo: {{ selectedPerson.created_at | date:'short' }}
+          </p>
+          <div class="flex gap-3">
+            <button
+              (click)="updatePerson()"
+              class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition">
+              💾 Lưu thay đổi
+            </button>
+            <button
+              *ngIf="selectedPerson.person_id"
+              (click)="deletePerson(selectedPerson.person_id)"
+              class="bg-red-500 text-white px-5 py-2 rounded-lg hover:bg-red-600 transition">
+              🗑️ Xóa
+            </button>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+
+    <ng-template #noSelection>
+      <div class="text-gray-500 text-center mt-40 text-lg italic">
+        Hãy chọn hoặc thêm một nhân viên từ danh sách bên trái.
+      </div>
+    </ng-template>
+  </main>
+</div>

@@ -1,0 +1,53 @@
+<div *ngIf="employee" class="bg-white border rounded-lg shadow p-6 max-w-lg mx-auto">
+  <h2 class="text-xl font-bold mb-4 text-center">Thông tin cá nhân</h2>
+
+  <div class="flex flex-col items-center">
+    <img *ngIf="employee.image"
+         [src]="employee.image"
+         class="w-32 h-32 object-cover rounded-full mb-4 border" />
+
+    <!-- Form -->
+    <div class="w-full space-y-2">
+      <div>
+        <label class="block font-medium">Tên:</label>
+        <input [(ngModel)]="newName"
+               [readonly]="!editMode"
+               class="border rounded px-3 py-1 w-full" />
+      </div>
+
+      <div>
+        <label class="block font-medium">Mã NV:</label>
+        <input [value]="employee.person_id"
+               readonly
+               class="border rounded px-3 py-1 w-full bg-gray-100" />
+      </div>
+
+      <div>
+        <label class="block font-medium">Mã Employee ID:</label>
+        <input [value]="employee.person_id"
+               readonly
+               class="border rounded px-3 py-1 w-full bg-gray-100" />
+      </div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="flex gap-3 mt-4">
+      <button *ngIf="!editMode"
+              (click)="enableEdit()"
+              class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+        Sửa
+      </button>
+      <!-- <button *ngIf="editMode"
+              (click)="saveChanges()"
+              class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
+        Lưu
+      </button>
+      <button (click)="deleteEmployee()"
+              class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">
+        Xóa
+      </button> -->
+    </div>
+  </div>
+</div>
+
+<h1>works</h1>

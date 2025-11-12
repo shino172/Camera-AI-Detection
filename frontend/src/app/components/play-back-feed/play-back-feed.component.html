@@ -1,0 +1,160 @@
+<div class="flex flex-col h-[calc(100vh-6rem)] bg-gray-50">
+
+  <!-- Danh sách NVR -->
+  <div *ngIf="!selectedNvrId" class="overflow-y-auto">
+    <h2 class="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800">
+      <i class="fas fa-server text-blue-500"></i> Danh sách đầu ghi
+    </h2>
+
+    <div *ngIf="!nvrs.length" class="text-gray-500 italic text-center mt-10">
+      <i class="fas fa-video-slash text-4xl mb-3 block"></i>
+      Chưa có đầu ghi nào.
+    </div>
+
+    <div *ngIf="nvrs.length" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div *ngFor="let nvr of nvrs"
+           (click)="selectNvr(nvr.id)"
+           class="bg-white rounded-xl shadow hover:shadow-lg cursor-pointer p-4 border transition">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="font-semibold text-gray-800">{{ nvr.name }}</h3>
+          <i class="fas fa-chevron-right text-gray-400"></i>
+        </div>
+        <p class="text-xs text-gray-400">{{ nvr.cameras?.length || 0 }} camera</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Playback View -->
+  <div *ngIf="selectedNvrId" class="flex flex-col bg-white rounded-2xl shadow border">
+    <!-- Header -->
+    <div class="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-2xl top-0 z-20">
+      <div class="flex items-center gap-3">
+        <button (click)="backToNvrList()"
+                class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-lg flex items-center gap-1 transition">
+          <i class="fas fa-arrow-left"></i> Quay lại
+        </button>
+        <h2 class="text-lg font-semibold text-gray-700 flex items-center gap-2">
+          <i class="fas fa-play text-blue-500"></i> Playback - {{ getNvrName(selectedNvrId) }}
+        </h2>
+      </div>
+      <input type="date"
+             [(ngModel)]="selectedDate"
+             (change)="reloadAllCameraSegments()"
+             class="border px-3 py-1 rounded-lg text-sm text-gray-700 focus:ring focus:ring-blue-300">
+    </div>
+
+    <!-- Playback Controls -->
+    <div class="flex flex-wrap items-center gap-4 bg-white p-3 border-b shadow-sm">
+      <!-- Camera Selector -->
+      <div class="relative">
+        <button (click)="showCameraMenu = !showCameraMenu"
+                class="px-3 py-1 border rounded text-sm bg-white shadow flex items-center gap-2">
+          <i class="fas fa-video"></i> {{ currentCamera?.name || 'Chọn Camera' }}
+        </button>
+        <div *ngIf="showCameraMenu"
+             class="absolute mt-1 bg-white border rounded shadow z-50 w-56 max-h-64 overflow-y-auto">
+          <div *ngFor="let cam of getSelectedNvr()?.cameras"
+               (click)="selectCamera(cam); showCameraMenu=false"
+               class="px-3 py-1 hover:bg-gray-100 cursor-pointer truncate">
+            {{ cam.name }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Layout Selector -->
+      <div class="relative">
+        <button (click)="toggleLayoutMenu()"
+                class="px-3 py-1 border rounded text-sm bg-white shadow flex items-center gap-1">
+          <i class="fas fa-th-large"></i> Layout: {{ gridCols }}x{{ gridCols }}
+        </button>
+        <div *ngIf="showLayoutMenu"
+             class="absolute mt-1 bg-white border rounded shadow z-50 w-32">
+          <div *ngFor="let size of [1, 2, 3, 4]"
+               (click)="changeLayout(size); showLayoutMenu=false"
+               class="px-3 py-1 hover:bg-gray-100 cursor-pointer">
+            {{ size }}x{{ size }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Clips per page -->
+      <div class="relative">
+        <button (click)="showPageSizeMenu = !showPageSizeMenu"
+                class="px-3 py-1 border rounded text-sm bg-white shadow flex items-center gap-1">
+          <i class="fas fa-layer-group"></i> {{ pageSize }} clips
+        </button>
+        <div *ngIf="showPageSizeMenu"
+             class="absolute mt-1 bg-white border rounded shadow z-50 w-40">
+          <div *ngFor="let size of [8, 16, 32, 64]"
+               (click)="changePageSize(size); showPageSizeMenu=false"
+               class="px-3 py-1 hover:bg-gray-100 cursor-pointer">
+            {{ size }} clips
+          </div>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div class="flex items-center gap-2 ml-auto">
+        <button (click)="prevPage()" [disabled]="currentPage === 1"
+                class="px-3 py-1 border rounded text-sm bg-white shadow disabled:opacity-50">◀</button>
+        <span>Trang {{ currentPage }} / {{ totalPages }}</span>
+        <button (click)="nextPage()" [disabled]="currentPage >= totalPages"
+                class="px-3 py-1 border rounded text-sm bg-white shadow disabled:opacity-50">▶</button>
+      </div>
+    </div>
+
+    <!-- Video Grid -->
+    <div class="flex-1 overflow-y-auto p-4 bg-gray-100 rounded-b-2xl">
+      <div class="grid gap-4 justify-center"
+           [ngClass]="{
+             'grid-cols-1': gridCols === 1,
+             'grid-cols-2': gridCols === 2,
+             'grid-cols-3': gridCols === 3,
+             'grid-cols-4': gridCols === 4
+           }">
+        <div *ngFor="let seg of paginatedSegments"
+             (click)="playSegment(currentCamera.id, seg)"
+             class="bg-white rounded-xl overflow-hidden shadow hover:shadow-lg cursor-pointer border transition flex flex-col">
+          <div class="bg-gray-100 text-gray-700 px-2 py-1 text-xs truncate border-b font-medium">
+            {{ seg.start_time | date:'shortTime' }} - {{ seg.end_time | date:'shortTime' }}
+          </div>
+          <div class="relative w-full aspect-video bg-black flex items-center justify-center">
+            <video *ngIf="selectedSegment[currentCamera?.id]?.id === seg.id"
+                   [src]="getVideoUrl(currentCamera.id, seg.id)"
+                   autoplay muted controls
+                   class="absolute inset-0 w-full h-full object-contain rounded-b-lg"></video>
+            <div *ngIf="selectedSegment[currentCamera?.id]?.id !== seg.id"
+                 class="text-gray-400 text-sm flex flex-col items-center justify-center h-full">
+              <i class="fas fa-play-circle text-2xl mb-1"></i>
+              Nhấn để phát đoạn này
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class=" bottom-0 bg-white border-t shadow-md py-3 px-6 z-30 rounded-b-2xl">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          <i class="fas fa-clock text-blue-500"></i> Timeline - {{ selectedDate }}
+        </h3>
+      </div>
+      <div class="timeline relative h-4 bg-gray-200 rounded-full overflow-hidden cursor-pointer"
+           (click)="seekToTime($event)">
+        <ng-container *ngIf="currentCamera">
+          <div *ngFor="let seg of cameraVideos[currentCamera.id] || []"
+               class="absolute h-full rounded-full bg-blue-400"
+               [style.left.%]="getSegmentPosition(seg.start_time)"
+               [style.width.%]="getSegmentWidth(seg.start_time, seg.end_time)">
+          </div>
+        </ng-container>
+        <div class="absolute top-0 bottom-0 w-[2px] bg-red-500"
+             [style.left.%]="currentTimePercent"></div>
+      </div>
+      <div class="flex justify-between text-xs text-gray-500 mt-1">
+        <span *ngFor="let h of hours">{{ h }}h</span>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,126 @@
+<div class="space-y-10">
+  <!-- CHỌN KHU VỰC & CAMERA -->
+  <div class="bg-white shadow-sm rounded-xl p-6 flex flex-col md:flex-row gap-6 border">
+    <div class="flex-1">
+      <label class="text-gray-600 font-medium block mb-1">Khu vực</label>
+      <select [(ngModel)]="selectedAreaId" (change)="onAreaChange()"
+              class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+        <option [ngValue]="null">-- Chọn khu vực --</option>
+        <option *ngFor="let a of areas" [ngValue]="a.id">{{ a.name }}</option>
+      </select>
+    </div>
+
+    <div class="flex-1">
+      <label class="text-gray-600 font-medium block mb-1">Camera</label>
+      <select [(ngModel)]="selectedCameraId"
+              class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+        <option [ngValue]="null">-- Chọn camera --</option>
+        <option *ngFor="let c of cameras" [ngValue]="c.camera_id">{{ c.name }}</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- LỊCH HOẠT ĐỘNG & CẤU HÌNH SỰ KIỆN -->
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <!-- LỊCH HOẠT ĐỘNG -->
+    <div class="bg-white rounded-xl p-6 border shadow-sm space-y-4">
+      <h3 class="text-lg font-semibold text-gray-700 flex items-center gap-2">
+        <i class="fa-regular fa-clock text-blue-500"></i> Lịch hoạt động chung
+      </h3>
+
+      <div *ngFor="let s of schedule; let i = index" class="flex items-center gap-3">
+        <div class="w-16 text-sm font-medium text-gray-700 text-right">{{ s.day.slice(0, 3) }}</div>
+        <div class="relative flex-1 h-5 bg-gray-200 rounded-full cursor-pointer hover:bg-gray-300"
+             (mousedown)="onMouseDown(i, $event)" (mousemove)="onMouseMove(i, $event)"
+             (mouseup)="onMouseUp()" (mouseleave)="onMouseUp()">
+          <div class="absolute inset-0 bg-gray-100 rounded-full"></div>
+          <div class="absolute top-0 bottom-0 bg-blue-500 rounded-full"
+               [style.left.%]="(s.start / 24) * 100"
+               [style.width.%]="((s.end - s.start) / 24) * 100"></div>
+        </div>
+        <div class="w-28 text-right text-xs text-gray-500">
+          {{ formatHourToTime(s.start) }} - {{ formatHourToTime(s.end) }}
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 mt-4">
+        <button (click)="clearAll()"
+                class="px-4 py-2 text-sm font-medium bg-gray-100 hover:bg-gray-200 rounded-lg border">🧹 Xóa tất cả</button>
+        <button (click)="copyToAll()"
+                class="px-4 py-2 text-sm font-medium bg-gray-100 hover:bg-gray-200 rounded-lg border">📄 Áp dụng cho tất cả</button>
+      </div>
+    </div>
+
+    <!-- CẤU HÌNH SỰ KIỆN -->
+    <div class="bg-white rounded-xl p-6 border shadow-sm">
+      <h3 class="text-lg font-semibold text-gray-700 flex items-center gap-2">
+        <i class="fa-regular fa-calendar text-green-500"></i> Cấu hình sự kiện
+      </h3>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm border-collapse">
+          <thead class="bg-gray-100 text-gray-700">
+            <tr>
+              <th class="px-3 py-2 border text-left">Sự kiện</th>
+              <th class="px-3 py-2 border text-center">Bắt đầu</th>
+              <th class="px-3 py-2 border text-center">Kết thúc</th>
+              <th class="px-3 py-2 border text-center">Kích hoạt</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let e of eventSchedules" class="hover:bg-gray-50">
+              <td class="px-3 py-2 border">{{ e.event }}</td>
+              <td class="px-3 py-2 border text-center">
+                <input type="time" [(ngModel)]="e.start"
+                       class="border rounded-md px-2 py-1 focus:ring-2 focus:ring-blue-400" />
+              </td>
+              <td class="px-3 py-2 border text-center">
+                <input type="time" [(ngModel)]="e.end"
+                       class="border rounded-md px-2 py-1 focus:ring-2 focus:ring-blue-400" />
+              </td>
+              <td class="px-3 py-2 border text-center">
+                <input type="checkbox" [(ngModel)]="e.enabled" class="accent-blue-500" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex justify-end mt-4">
+        <button (click)="saveAlarm()"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg shadow flex items-center gap-2">
+          💾 Lưu cấu hình
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHƯƠNG THỨC LIÊN KẾT -->
+  <div class="bg-white shadow-sm rounded-xl p-6 space-y-4 border">
+    <h3 class="text-lg font-semibold text-gray-700 flex items-center gap-2">
+      <i class="fa-solid fa-link text-purple-500"></i> Phương thức liên kết
+    </h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="bg-gray-50 p-4 rounded-lg border space-y-2">
+        <h4 class="font-medium text-gray-700 mb-2">Cảnh báo thường</h4>
+        <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="linkage.normal.audibleWarning" /> Âm thanh</label>
+        <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="linkage.normal.sendEmail" /> Gửi email</label>
+        <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="linkage.normal.notifySurveillance" /> Gửi giám sát</label>
+      </div>
+
+      <div class="bg-gray-50 p-4 rounded-lg border space-y-2">
+        <h4 class="font-medium text-gray-700 mb-2">Cảnh báo đèn & âm thanh</h4>
+        <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="linkage.audioLightAlarm.audio" /> Âm thanh</label>
+        <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="linkage.audioLightAlarm.light" /> Đèn</label>
+      </div>
+
+      <div class="bg-gray-50 p-4 rounded-lg border max-h-56 overflow-y-auto">
+        <h4 class="font-medium text-gray-700 mb-2">Ghi hình khi cảnh báo</h4>
+        <label *ngFor="let camera of cameras" class="flex items-center gap-2">
+          <input type="checkbox" [(ngModel)]="camera.triggerRecording" /> {{ camera.name }}
+        </label>
+      </div>
+    </div>
+  </div>
+</div>

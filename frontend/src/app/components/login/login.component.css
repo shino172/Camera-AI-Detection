@@ -1,0 +1,27 @@
+/* Tổng thể: đơn giản, hiện đại, nhẹ nhàng */
+body {
+  background-color: #f3f4f6;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Hiệu ứng mượt khi hiển thị form Admin */
+[ngIf] {
+  transition: all 0.3s ease;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .max-w-md {
+    margin: 0 1rem;
+    padding: 1.5rem;
+  }
+}
+
+/* Hover tinh tế */
+button {
+  transition: background-color 0.25s ease, transform 0.1s ease;
+}
+
+button:active {
+  transform: scale(0.98);
+}

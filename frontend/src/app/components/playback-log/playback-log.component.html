@@ -1,0 +1,60 @@
+<div class="flex h-[calc(100vh-4rem)] bg-gray-50">
+  <!-- ===== SIDEBAR ===== -->
+  <aside
+    class="w-64 bg-white border-r shadow-sm flex flex-col fixed top-[4rem] bottom-0 left-0 z-30 h-[calc(100vh-4rem)] transition-all duration-300">
+
+    <!-- Header -->
+    <div class="flex items-center gap-3 px-6 py-5 border-b">
+      <div
+        class="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow text-white text-lg font-bold">
+        PL
+      </div>
+      <div>
+        <h3 class="text-base font-bold text-gray-700 leading-tight">Playback & Log</h3>
+        <p class="text-xs text-gray-400">Quản lý phát lại & nhật ký</p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="flex-1 flex flex-col py-4 overflow-y-auto no-scrollbar">
+      <button
+        (click)="activeTab = 'playback'"
+        [ngClass]="activeTab === 'playback'
+          ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
+          : 'text-gray-600 hover:bg-gray-100'"
+        class="px-6 py-3 flex items-center gap-3 text-sm rounded-r-lg transition-all duration-200 text-left">
+        <i class="fa-solid fa-play-circle text-lg"></i>
+        Playback
+      </button>
+
+      <button
+        (click)="activeTab = 'log'"
+        [ngClass]="activeTab === 'log'
+          ? 'bg-green-50 text-green-700 border-l-4 border-green-600 font-semibold'
+          : 'text-gray-600 hover:bg-gray-100'"
+        class="px-6 py-3 flex items-center gap-3 text-sm rounded-r-lg transition-all duration-200 text-left">
+        <i class="fa-solid fa-list text-lg"></i>
+        Log File
+      </button>
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 border-t bg-gray-50 text-xs text-gray-400">
+      © 2025 Playback Center
+    </div>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main
+    class="flex-1 ml-64 bg-gray-50 p-8 overflow-y-auto no-scrollbar transition-all duration-300">
+    <!-- ===== PLAYBACK SECTION ===== -->
+    <section *ngIf="activeTab === 'playback'" class="animate-fadeIn">
+      <app-play-back-feed></app-play-back-feed>
+    </section>
+
+    <!-- ===== LOG SECTION ===== -->
+    <section *ngIf="activeTab === 'log'" class="animate-fadeIn">
+      <app-log-file></app-log-file>
+    </section>
+  </main>
+</div>

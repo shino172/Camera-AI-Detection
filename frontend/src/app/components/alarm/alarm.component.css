@@ -1,0 +1,113 @@
+.alarm-panel { max-width: 900px; margin: 0 auto; }
+
+/* timeline container */
+.timeline-wrap { background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e5e7eb; }
+.timeline {
+  position: relative;
+  height: 80px;
+  width: 100%;
+  background: linear-gradient(90deg, #ffffff 0%, #fbfbfd 100%);
+  border-radius: 6px;
+  overflow: visible;
+  user-select: none;
+  cursor: pointer;
+}
+
+/* marks */
+.marks { position: absolute; top: 0; left: 0; right: 0; height: 100%; display:flex; }
+.marks .mark { flex:1; border-left: 1px dashed rgba(0,0,0,0.05); position:relative; }
+.marks .mark .label { position:absolute; left:4px; top:2px; font-size:10px; color:#6b7280; }
+
+/* segment block style (Hikvision-like blue) */
+.segment {
+  position: absolute;
+  top: 22px;
+  height: 36px;
+  background: linear-gradient(180deg,#2563eb,#1e40af);
+  border-radius: 6px;
+  display:flex;
+  align-items:center;
+  padding: 0 28px;
+  color: white;
+  font-weight:600;
+  box-shadow: 0 6px 12px rgba(37,99,235,0.12);
+  transition: box-shadow .12s ease;
+}
+.segment:hover { box-shadow: 0 8px 18px rgba(37,99,235,0.2); }
+
+/* handles */
+.handle {
+  position: absolute;
+  width: 12px;
+  height: 36px;
+  top: 0;
+  cursor: ew-resize;
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+}
+.left-handle { left: 0; transform: translateX(-50%); }
+.right-handle { right: 0; transform: translateX(50%); }
+
+/* text inside segment */
+.seg-text { pointer-events: none; font-size: 12px; }
+
+/* small buttons */
+.btn { padding: 6px 10px; border-radius: 6px; border:1px solid #e5e7eb; background:white; cursor:pointer; }
+.btn-primary { padding: 8px 14px; border-radius:8px; background:#2563eb; color:white; border:none; cursor:pointer; }
+
+.linkage { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px; cursor:pointer; }
+.linkage input { margin-right:6px; }
+
+
+/* Tay cầm (drag handle) */
+div[role='handle'] {
+  cursor: ew-resize;
+}
+
+.timeline:hover {
+  background-color: #f1f5f9;
+}
+
+.bg-blue-500 {
+  background-color: #3b82f6;
+}
+.bg-blue-700 {
+  background-color: #1d4ed8;
+}
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  background-color: #000;
+  color: white;
+  padding: 2px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+}
+
+/* Thanh range mượt và ẩn đi */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+  pointer-events: all;
+}
+input[type='range']::-webkit-slider-thumb {
+  height: 14px;
+  width: 14px;
+  background-color: #2563eb;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.4);
+}
+input[type='range']::-moz-range-thumb {
+  height: 14px;
+  width: 14px;
+  background-color: #2563eb;
+  border-radius: 50%;
+  cursor: pointer;
+}
+

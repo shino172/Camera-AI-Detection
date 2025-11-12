@@ -1,0 +1,192 @@
+<div class="flex h-[calc(100vh-4rem)] bg-gray-50">
+  <!-- ===== SIDEBAR (TRÁI) ===== -->
+  <aside
+    class="w-64 bg-white border-r shadow-sm flex flex-col fixed top-[4rem] bottom-0 left-0 z-30 h-[calc(100vh-4rem)] transition-all duration-300">
+
+    <!-- Header logo/title -->
+    <div class="flex items-center gap-3 px-6 py-5 border-b">
+      <div
+        class="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow text-white text-lg font-bold">
+        AC
+      </div>
+      <div>
+        <h3 class="text-base font-bold text-gray-700 leading-tight">
+          Permission Control
+        </h3>
+        <p class="text-xs text-gray-400">Quản lý phân quyền</p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="flex-1 flex flex-col py-4 overflow-y-auto no-scrollbar">
+      <button
+        (click)="mode = 'individual'"
+        [ngClass]="mode === 'individual'
+          ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
+          : 'text-gray-600 hover:bg-gray-100'"
+        class="px-6 py-3 flex items-center gap-3 text-sm rounded-r-lg transition-all duration-200 text-left">
+        <i class="fa-solid fa-user-shield text-lg"></i>
+        Phân quyền cá nhân
+      </button>
+
+      <button
+        (click)="mode = 'group'"
+        [ngClass]="mode === 'group'
+          ? 'bg-green-50 text-green-700 border-l-4 border-green-600 font-semibold'
+          : 'text-gray-600 hover:bg-gray-100'"
+        class="px-6 py-3 flex items-center gap-3 text-sm rounded-r-lg transition-all duration-200 text-left">
+        <i class="fa-solid fa-people-group text-lg"></i>
+        Phân quyền nhóm
+      </button>
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 border-t bg-gray-50 text-xs text-gray-400">
+      © 2025 Permission Control
+    </div>
+  </aside>
+
+  <!-- ===== MAIN CONTENT (PHẢI) ===== -->
+  <main
+    class="flex-1 ml-64 bg-gray-50 p-8 overflow-y-auto no-scrollbar transition-all duration-300">
+    <!-- <div
+      class="flex items-center justify-between mb-6 border-b pb-4 bg-gray-50 z-20">
+      <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
+        <i
+          class="fa-solid"
+          [ngClass]="
+            mode === 'individual'
+              ? 'fa-user-shield text-blue-500'
+              : 'fa-people-group text-green-500'
+          "></i>
+        {{ mode === 'individual' ? 'Phân quyền cá nhân' : 'Phân quyền nhóm' }}
+      </h2>
+    </div> -->
+
+    <!-- ======================== PHÂN QUYỀN CÁ NHÂN ======================== -->
+    <section *ngIf="mode === 'individual'" class="grid grid-cols-12 gap-6 animate-fadeIn h-full">
+      <!-- Danh sách nhân viên -->
+      <div class="col-span-4 bg-white rounded-xl border p-4 shadow-sm flex flex-col">
+        <h2 class="font-semibold text-gray-700 mb-3">👥 Danh sách nhân viên</h2>
+        <input [(ngModel)]="searchTerm"
+               placeholder="🔍 Tìm kiếm nhân viên..."
+               class="w-full border rounded-lg px-3 py-2 mb-3 text-sm focus:ring focus:ring-blue-200"/>
+
+        <!-- Scroll vùng danh sách -->
+        <div class="flex-1 overflow-y-auto no-scrollbar fade-scroll border-t pt-2">
+          <ul class="divide-y">
+            <li *ngFor="let u of filteredUsers()" (click)="selectUser(u)"
+                [class.bg-blue-50]="selectedUser?.person_id === u.person_id"
+                class="p-2 rounded-lg cursor-pointer hover:bg-blue-100 flex items-center gap-3 transition">
+              <img [src]="u.avatar || 'assets/default-avatar.png'"
+                   class="w-8 h-8 rounded-full border object-cover"/>
+              <span class="font-medium text-gray-800 truncate">{{ u.name }}</span>
+            </li>
+          </ul>
+
+          <p *ngIf="filteredUsers().length === 0"
+             class="text-gray-400 text-center mt-4 italic">Không tìm thấy nhân viên nào.</p>
+        </div>
+      </div>
+
+      <!-- Phân quyền chi tiết -->
+      <div class="col-span-8 bg-white rounded-xl border p-6 shadow-sm overflow-y-auto no-scrollbar">
+        <ng-container *ngIf="selectedUser; else noUser">
+          <div class="flex items-center gap-4 mb-4 border-b pb-4">
+            <img [src]="selectedUser.avatar || 'assets/default-avatar.png'"
+                 class="w-14 h-14 rounded-full border object-cover shadow-sm"/>
+            <div>
+              <h3 class="text-xl font-semibold text-gray-800">{{ selectedUser.name }}</h3>
+              <p class="text-sm text-gray-500">{{ selectedUser.position || 'Chưa có chức vụ' }}</p>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-6">
+            <!-- Tài khoản -->
+            <div class="bg-gray-50 border rounded-xl p-4 shadow-inner space-y-3">
+              <h4 class="font-semibold text-gray-700">🔑 Tài khoản đăng nhập</h4>
+              <ng-container *ngIf="userAccount?.username; else createAccountTpl">
+                <p class="text-sm text-gray-800">
+                  👤 <b>{{ userAccount?.username }}</b>
+                </p>
+                <button (click)="deleteAccount()" class="text-red-600 text-sm mt-2">
+                  🗑️ Xóa tài khoản
+                </button>
+              </ng-container>
+
+              <ng-template #createAccountTpl>
+                <input [(ngModel)]="accountData.username" placeholder="Tên đăng nhập"
+                       class="border p-2 w-full rounded-lg text-sm">
+                <input [(ngModel)]="accountData.password" placeholder="Mật khẩu"
+                       type="password" class="border p-2 w-full rounded-lg text-sm">
+                <button (click)="createAccount()"
+                        class="w-full bg-blue-600 text-white rounded-lg py-2 text-sm hover:bg-blue-700 transition">
+                  ➕ Tạo tài khoản
+                </button>
+              </ng-template>
+            </div>
+
+            <!-- Quyền -->
+            <div class="bg-gray-50 border rounded-xl p-4 shadow-inner space-y-2">
+              <h4 class="font-semibold text-gray-700">⚙️ Cấp quyền sử dụng</h4>
+              <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="permissions.viewPlaybackLog"> 🎥 Playback & Logs</label>
+              <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="permissions.viewEventAlarm"> ⚙️ Event & Alarm</label>
+              <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="permissions.manage_Employees"> 👥 Quản lý nhân viên</label>
+              <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="permissions.manageSystem"> 🧰 Hệ thống (Admin)</label>
+              <div class="text-right">
+                <button (click)="savePermissions()"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm mt-3 transition">
+                  💾 Lưu quyền
+                </button>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+        <ng-template #noUser>
+          <p class="text-gray-500 italic text-center mt-16">
+            Hãy chọn nhân viên bên trái để gán quyền và tạo tài khoản.
+          </p>
+        </ng-template>
+      </div>
+    </section>
+
+    <!-- ======================== PHÂN QUYỀN NHÓM ======================== -->
+    <section *ngIf="mode === 'group'" class="animate-fadeIn space-y-6">
+      <h3 class="font-semibold text-lg text-gray-800 flex items-center gap-2">
+        👥 Cấp quyền theo nhóm chức năng
+      </h3>
+
+      <div class="grid md:grid-cols-3 gap-3 bg-white border rounded-xl p-4 shadow-sm">
+        <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="groupPermissions.viewPlaybackLog"> 🎥 Playback</label>
+        <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="groupPermissions.viewEventAlarm"> ⚙️ Event</label>
+        <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="groupPermissions.manage_Employees"> 👥 Quản lý nhân viên</label>
+        <label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="groupPermissions.manageSystem"> 🧰 Quản trị hệ thống</label>
+      </div>
+
+      <div class="bg-white border rounded-xl p-4 shadow-sm max-h-[60vh] overflow-y-auto no-scrollbar fade-scroll">
+        <h4 class="font-semibold text-gray-700 mb-2">👥 Danh sách nhân viên</h4>
+        <input [(ngModel)]="searchTerm" placeholder="Tìm kiếm nhân viên..."
+               class="border rounded-lg w-full p-2 text-sm mb-3"/>
+        <ul class="divide-y">
+          <li *ngFor="let u of filteredUsers()"
+              class="flex items-center justify-between py-2 text-sm">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" [(ngModel)]="u.selected" [disabled]="!u.hasAccount" class="w-4 h-4">
+              <img [src]="u.avatar || 'assets/default-avatar.png'" class="w-8 h-8 rounded-full border">
+              <span>{{ u.name }}</span>
+            </label>
+            <span class="text-xs text-gray-400">{{ u.hasAccount ? '✅ Có tài khoản' : '❌ Chưa có' }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="text-right">
+        <button (click)="applyGroupPermission()" [disabled]="!hasSelectedPermissions()"
+                class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+          💾 Cấp quyền nhóm
+        </button>
+      </div>
+    </section>
+  </main>
+</div>

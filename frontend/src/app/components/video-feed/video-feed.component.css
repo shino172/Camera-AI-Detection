@@ -1,0 +1,14 @@
+.container h1 { font-size:20px; margin:0; }
+.header nav a { color:#0f172a; text-decoration:none; margin-left:8px; }
+.video-wrapper img { width:100%; height:auto; border-radius:8px; }
+
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.grid-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.grid-cols-8 { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.grid-cols-16 { grid-template-columns: repeat(16, minmax(0, 1fr)); }
+
+img {
+  aspect-ratio: 16/9;
+}

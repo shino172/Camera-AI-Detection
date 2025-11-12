@@ -1,0 +1,55 @@
+<div class="flex items-center justify-center min-h-screen bg-gradient-to-r from-red-600 to-red-800">
+  <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md space-y-6">
+    <!-- Logo + tiêu đề -->
+    <div class="text-center">
+      <img src="assets/logo.jpg" alt="Logo" class="w-16 h-16 mx-auto rounded mb-3 object-contain drop-shadow-lg transition-transform duration-300 hover:scale-105" />
+      <h2 class="text-2xl font-bold text-gray-800">Đăng nhập hệ thống</h2>
+      <p class="text-sm text-gray-500">Cholimex Surveillance Management</p>
+    </div>
+
+    <!-- Form -->
+    <form (ngSubmit)="login()" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Tên đăng nhập</label>
+        <input
+          [(ngModel)]="username"
+          name="username"
+          type="text"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+          placeholder="Nhập tên đăng nhập..."
+        />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
+        <input
+          [(ngModel)]="password"
+          name="password"
+          type="password"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+          placeholder="Nhập mật khẩu..."
+        />
+      </div>
+
+      <!-- Thông báo lỗi -->
+      <div *ngIf="errorMessage" class="text-red-600 text-sm font-medium bg-red-50 p-2 rounded-lg">
+        {{ errorMessage }}
+      </div>
+
+      <!-- Nút đăng nhập -->
+      <button
+        type="submit"
+        [disabled]="isLoading"
+        class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-semibold transition disabled:opacity-50"
+      >
+        <span *ngIf="!isLoading">🔐 Đăng nhập</span>
+        <span *ngIf="isLoading">⏳ Đang xử lý...</span>
+      </button>
+    </form>
+
+    <!-- Footer -->
+    <div class="text-center text-xs text-gray-400">
+      © 2025 Cholimex Surveillance. All rights reserved.
+    </div>
+  </div>
+</div>

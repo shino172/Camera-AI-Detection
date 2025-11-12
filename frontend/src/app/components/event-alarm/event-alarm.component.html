@@ -1,0 +1,61 @@
+<div class="flex h-[calc(100vh-4rem)] bg-gray-50">
+  <!-- ===== SIDEBAR ===== -->
+  <aside
+    class="w-64 bg-white border-r shadow-sm flex flex-col fixed top-[4rem] bottom-0 left-0 z-30 h-[calc(100vh-4rem)] transition-all duration-300">
+
+    <div class="flex items-center gap-3 px-6 py-5 border-b">
+      <div
+        class="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow text-white text-lg font-bold">
+        EA
+      </div>
+      <div>
+        <h3 class="text-base font-bold text-gray-700 leading-tight">Event & Alarm</h3>
+        <p class="text-xs text-gray-400">Cấu hình hệ thống cảnh báo</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 flex flex-col py-4 overflow-y-auto no-scrollbar">
+      <button
+        (click)="activeTab = 'config'"
+        [ngClass]="activeTab === 'config'
+          ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
+          : 'text-gray-600 hover:bg-gray-100'"
+        class="px-6 py-3 flex items-center gap-3 text-sm rounded-r-lg transition-all duration-200 text-left">
+        <i class="fa-solid fa-gear text-lg"></i> Cấu hình hệ thống
+      </button>
+
+      <button
+        (click)="activeTab = 'alarm'"
+        [ngClass]="activeTab === 'alarm'
+          ? 'bg-red-50 text-red-700 border-l-4 border-red-600 font-semibold'
+          : 'text-gray-600 hover:bg-gray-100'"
+        class="px-6 py-3 flex items-center gap-3 text-sm rounded-r-lg transition-all duration-200 text-left">
+        <i class="fa-solid fa-bell text-lg"></i> Cấu hình cảnh báo
+      </button>
+    </nav>
+
+    <div class="px-6 py-4 border-t bg-gray-50 text-xs text-gray-400">
+      © 2025 Surveillance Manager
+    </div>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main
+    class="flex-1 ml-64 bg-gray-50 p-8 overflow-y-auto no-scrollbar transition-all duration-300">
+    <div class="flex items-center justify-between mb-6 border-b pb-4  top-0 bg-gray-50 z-20">
+      <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
+        <i class="fa-solid"
+           [ngClass]="activeTab === 'config' ? 'fa-gear text-blue-500' : 'fa-bell text-red-500'"></i>
+        {{ activeTab === 'config' ? 'Cấu hình hệ thống' : 'Cấu hình cảnh báo' }}
+      </h2>
+    </div>
+
+    <section *ngIf="activeTab === 'config'" class="animate-fadeIn">
+      <app-configuration></app-configuration>
+    </section>
+
+    <section *ngIf="activeTab === 'alarm'" class="animate-fadeIn">
+      <app-alarm></app-alarm>
+    </section>
+  </main>
+</div>

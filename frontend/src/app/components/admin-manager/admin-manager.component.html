@@ -1,0 +1,277 @@
+<div class="flex h-[calc(100vh-4rem)] bg-gray-50">
+  <!-- ===== SIDEBAR ===== -->
+  <aside
+    class="w-64 bg-white border-r shadow-sm flex flex-col fixed top-[4rem] bottom-0 left-0 z-30 h-[calc(100vh-4rem)] transition-all duration-300">
+
+    <!-- Header -->
+    <div class="flex items-center gap-3 px-6 py-5 border-b">
+      <div class="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow text-white text-lg font-bold">
+        SM
+      </div>
+      <div>
+        <h3 class="text-base font-bold text-gray-700 leading-tight">
+          System Manager
+        </h3>
+        <p class="text-xs text-gray-400">Cấu hình hệ thống</p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="flex-1 flex flex-col py-4 overflow-y-auto no-scrollbar">
+      <button
+        (click)="activeTab = 'area'"
+        [ngClass]="activeTab === 'area'
+          ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
+          : 'text-gray-600 hover:bg-gray-100'"
+        class="px-6 py-3 flex items-center gap-3 text-sm rounded-r-lg transition-all duration-200 text-left">
+        <i class="fa-solid fa-map-location-dot text-lg"></i> Khu vực
+      </button>
+
+      <button
+        (click)="activeTab = 'nvr'"
+        [ngClass]="activeTab === 'nvr'
+          ? 'bg-indigo-50 text-indigo-700 border-l-4 border-indigo-600 font-semibold'
+          : 'text-gray-600 hover:bg-gray-100'"
+        class="px-6 py-3 flex items-center gap-3 text-sm rounded-r-lg transition-all duration-200 text-left">
+        <i class="fa-solid fa-server text-lg"></i> Đầu ghi NVR
+      </button>
+
+      <button
+        (click)="activeTab = 'camera'"
+        [ngClass]="activeTab === 'camera'
+          ? 'bg-green-50 text-green-700 border-l-4 border-green-600 font-semibold'
+          : 'text-gray-600 hover:bg-gray-100'"
+        class="px-6 py-3 flex items-center gap-3 text-sm rounded-r-lg transition-all duration-200 text-left">
+        <i class="fa-solid fa-video text-lg"></i> Camera
+      </button>
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 border-t bg-gray-50 text-xs text-gray-400">
+      © 2025 System Management
+    </div>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main
+    class="flex-1 ml-64 bg-gray-50 p-8 overflow-y-auto no-scrollbar transition-all duration-300">
+
+    <!-- Sticky Header -->
+    <div class="flex items-center justify-between mb-6 border-b pb-4 sticky top-0 bg-gray-50 z-20">
+      <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
+        <i class="fa-solid"
+           [ngClass]="activeTab === 'area' ? 'fa-map-location-dot text-blue-500' :
+                      activeTab === 'nvr' ? 'fa-server text-indigo-500' : 'fa-video text-green-500'"></i>
+        {{ activeTab === 'area' ? 'Quản lý khu vực' : activeTab === 'nvr' ? 'Quản lý đầu ghi NVR' : 'Quản lý Camera' }}
+      </h2>
+    </div>
+
+    <!-- ===== TAB: KHU VỰC ===== -->
+    <section *ngIf="activeTab === 'area'" class="space-y-6 animate-fadeIn">
+      <div class="grid md:grid-cols-3 gap-3">
+        <input class="border p-2 rounded-lg" placeholder="Mã khu vực" [(ngModel)]="newArea.code">
+        <input class="border p-2 rounded-lg" placeholder="Tên khu vực" [(ngModel)]="newArea.name">
+        <input class="border p-2 rounded-lg" placeholder="Mô tả" [(ngModel)]="newArea.description">
+      </div>
+      <button (click)="addArea()"
+              class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition">
+        ➕ Thêm khu vực
+      </button>
+
+      <div class="overflow-x-auto border rounded-lg shadow-sm">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-100 text-gray-700">
+            <tr>
+              <th class="p-2">ID</th>
+              <th class="p-2">Mã</th>
+              <th class="p-2">Tên</th>
+              <th class="p-2">Mô tả</th>
+              <th class="p-2 text-center">Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let a of areas" class="hover:bg-gray-50 border-t">
+              <td class="p-2">{{ a.id }}</td>
+              <td class="p-2">
+                <input *ngIf="editArea?.id === a.id" [(ngModel)]="editArea.code" class="border rounded p-1 w-full">
+                <span *ngIf="editArea?.id !== a.id">{{ a.code }}</span>
+              </td>
+              <td class="p-2">
+                <input *ngIf="editArea?.id === a.id" [(ngModel)]="editArea.name" class="border rounded p-1 w-full">
+                <span *ngIf="editArea?.id !== a.id">{{ a.name }}</span>
+              </td>
+              <td class="p-2">
+                <input *ngIf="editArea?.id === a.id" [(ngModel)]="editArea.description" class="border rounded p-1 w-full">
+                <span *ngIf="editArea?.id !== a.id">{{ a.description }}</span>
+              </td>
+              <td class="p-2 text-center space-x-2">
+                <ng-container *ngIf="editArea?.id !== a.id; else editRow">
+                  <button (click)="startEditArea(a)" class="text-blue-600 hover:text-blue-800">✏️</button>
+                  <button (click)="deleteArea(a.id)" class="text-red-600 hover:text-red-800">🗑️</button>
+                </ng-container>
+                <ng-template #editRow>
+                  <button (click)="saveEditArea()" class="text-green-600 hover:text-green-800">💾</button>
+                  <button (click)="cancelEditArea()" class="text-gray-500 hover:text-gray-700">❌</button>
+                </ng-template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== TAB: NVR ===== -->
+    <section *ngIf="activeTab === 'nvr'" class="space-y-6 animate-fadeIn">
+      <div class="grid md:grid-cols-5 gap-3">
+        <input class="border p-2 rounded-lg" placeholder="Tên NVR" [(ngModel)]="newNvr.name">
+        <input class="border p-2 rounded-lg" placeholder="IP Address" [(ngModel)]="newNvr.ip_address">
+        <input class="border p-2 rounded-lg" placeholder="Port" type="number" [(ngModel)]="newNvr.port">
+        <input class="border p-2 rounded-lg" placeholder="User" [(ngModel)]="newNvr.username">
+        <input class="border p-2 rounded-lg" placeholder="Password" [(ngModel)]="newNvr.password">
+      </div>
+      <button (click)="addNvr()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+        ➕ Thêm NVR
+      </button>
+
+      <div class="overflow-x-auto border rounded-lg shadow-sm">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-100 text-gray-700">
+            <tr>
+              <th class="p-2">ID</th>
+              <th class="p-2">Tên</th>
+              <th class="p-2">IP</th>
+              <th class="p-2">Port</th>
+              <th class="p-2">User</th>
+              <th class="p-2 text-center">Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let n of nvrs" class="hover:bg-gray-50 border-t">
+              <td class="p-2">{{ n.id }}</td>
+              <td class="p-2">
+                <input *ngIf="editNvr?.id === n.id" [(ngModel)]="editNvr.name" class="border p-1 w-full rounded">
+                <span *ngIf="editNvr?.id !== n.id">{{ n.name }}</span>
+              </td>
+              <td class="p-2">
+                <input *ngIf="editNvr?.id === n.id" [(ngModel)]="editNvr.ip_address" class="border p-1 w-full rounded">
+                <span *ngIf="editNvr?.id !== n.id">{{ n.ip_address }}</span>
+              </td>
+              <td class="p-2">{{ n.port }}</td>
+              <td class="p-2">{{ n.username }}</td>
+              <td class="p-2 text-center space-x-2">
+                <ng-container *ngIf="editNvr?.id !== n.id; else editNvrRow">
+                  <button (click)="startEditNvr(n)" class="text-blue-600 hover:text-blue-800">✏️</button>
+                  <button (click)="deleteNvr(n.id)" class="text-red-600 hover:text-red-800">🗑️</button>
+                </ng-container>
+                <ng-template #editNvrRow>
+                  <button (click)="saveEditNvr()" class="text-green-600 hover:text-green-800">💾</button>
+                  <button (click)="cancelEditNvr()" class="text-gray-500 hover:text-gray-700">❌</button>
+                </ng-template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== TAB: CAMERA ===== -->
+    <section *ngIf="activeTab === 'camera'" class="space-y-6 animate-fadeIn">
+      <div class="grid md:grid-cols-6 gap-3">
+        <input class="border p-2 rounded-lg" placeholder="Tên camera" [(ngModel)]="newCamera.name">
+        <select class="border p-2 rounded-lg" [(ngModel)]="newCamera.area_id">
+          <option [ngValue]="null">Chọn khu vực</option>
+          <option *ngFor="let a of areas" [ngValue]="a.id">{{ a.name }}</option>
+        </select>
+        <select class="border p-2 rounded-lg" [(ngModel)]="newCamera.nvr_id">
+          <option [ngValue]="null">Chọn NVR</option>
+          <option *ngFor="let n of nvrs" [ngValue]="n.id">{{ n.name }}</option>
+        </select>
+        <input class="border p-2 rounded-lg" type="number" placeholder="Kênh" [(ngModel)]="newCamera.channel">
+        <input class="border p-2 rounded-lg col-span-2" placeholder="RTSP URL" [(ngModel)]="newCamera.rtsp_url">
+      </div>
+      <button (click)="addCamera()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+        ➕ Thêm Camera
+      </button>
+
+      <div class="overflow-x-auto border rounded-lg shadow-sm">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-100 text-gray-700">
+            <tr>
+              <th class="p-2">ID</th>
+              <th class="p-2">Tên</th>
+              <th class="p-2">Khu vực</th>
+              <th class="p-2">NVR</th>
+              <th class="p-2">Kênh</th>
+              <th class="p-2">RTSP</th>
+              <th class="p-2 text-center">Trạng thái</th>
+              <th class="p-2 text-center">Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let c of cameras" class="hover:bg-gray-50 border-t">
+              <td class="p-2">{{ c.id }}</td>
+
+              <!-- TÊN CAMERA -->
+              <td class="p-2">
+                <input *ngIf="editingId === c.id" [(ngModel)]="editCamera.name" class="border rounded p-1 w-full" />
+                <span *ngIf="editingId !== c.id">{{ c.name }}</span>
+              </td>
+
+              <!-- KHU VỰC -->
+              <td class="p-2">
+                <select *ngIf="editingId === c.id" [(ngModel)]="editCamera.area_id" class="border rounded p-1 w-full">
+                  <option *ngFor="let a of areas" [ngValue]="a.id">{{ a.name }}</option>
+                </select>
+                <span *ngIf="editingId !== c.id">{{ c.area_name }}</span>
+              </td>
+
+              <!-- NVR -->
+              <td class="p-2">
+                <select *ngIf="editingId === c.id" [(ngModel)]="editCamera.nvr_id" class="border rounded p-1 w-full">
+                  <option *ngFor="let n of nvrs" [ngValue]="n.id">{{ n.name }}</option>
+                </select>
+                <span *ngIf="editingId !== c.id">{{ c.nvr_name }}</span>
+              </td>
+
+              <!-- KÊNH -->
+              <td class="p-2 text-center">
+                <input *ngIf="editingId === c.id" type="number" [(ngModel)]="editCamera.channel" class="border rounded p-1 w-20 text-center" />
+                <span *ngIf="editingId !== c.id">{{ c.channel }}</span>
+              </td>
+
+              <!-- RTSP -->
+              <td class="p-2 truncate max-w-[280px]">
+                <input *ngIf="editingId === c.id" [(ngModel)]="editCamera.rtsp_url" class="border rounded p-1 w-full" />
+                <span *ngIf="editingId !== c.id">{{ c.rtsp_url }}</span>
+              </td>
+
+              <!-- TRẠNG THÁI -->
+              <td class="p-2 text-center">
+                <select *ngIf="editingId === c.id" [(ngModel)]="editCamera.status" class="border rounded p-1">
+                  <option value="active">🟢 Hoạt động</option>
+                  <option value="inactive">⚫ Dừng</option>
+                </select>
+                <span *ngIf="editingId !== c.id" [ngClass]="c.status === 'active' ? 'text-green-600' : 'text-gray-500'">
+                  {{ c.status === 'active' ? '🟢 Hoạt động' : '⚫ Dừng' }}
+                </span>
+              </td>
+
+              <!-- HÀNH ĐỘNG -->
+              <td class="p-2 text-center space-x-2">
+                <ng-container *ngIf="editingId !== c.id; else editCameraRow">
+                  <button (click)="startEditCamera(c)" class="text-blue-600 hover:text-blue-800">✏️</button>
+                  <button (click)="deleteCamera(c.id)" class="text-red-600 hover:text-red-800">🗑️</button>
+                </ng-container>
+                <ng-template #editCameraRow>
+                  <button (click)="saveEditCamera()" class="text-green-600 hover:text-green-800">💾</button>
+                  <button (click)="cancelEditCamera()" class="text-gray-500 hover:text-gray-700">❌</button>
+                </ng-template>
+              </td>
+            </tr>
+          </tbody>
+
+        </table>
+      </div>
+    </section>
+  </main>
+</div>

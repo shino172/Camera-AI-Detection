@@ -1,0 +1,21 @@
+/* You can add global styles to this file, and also import other style files */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import "@angular/material/prebuilt-themes/indigo-pink.css";
+@import 'sweetalert2/dist/sweetalert2.min.css';
+
+@import "@angular/material/prebuilt-themes/indigo-pink.css";
+
+.custom-alert-dialog .mat-dialog-container {
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0px 6px 20px rgba(0, 0, 0, 0.3);
+}
+.cdk-overlay-pane.custom-alert-dialog {
+  position: fixed !important;
+  top: 0% !important;
+  left: 0% !important;
+  transform: translate(5%, 70%) !important;
+  margin: 0 !important;
+}
