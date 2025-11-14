@@ -104,20 +104,20 @@ export class AuthService {
 
 
   /** ⚙️ Các quyền động */
-  canViewPlayback(): boolean {
-    return this.isAdmin() || this.getPermissions().includes('VIEW_PLAYBACK');
+  canViewPlaybackLog(): boolean {
+    return this.isAdmin() || this.getPermissions().includes('VIEW_PLAYBACKLOG');
   }
 
-  canViewLog(): boolean {
-    return this.isAdmin() || this.getPermissions().includes('VIEW_LOG');
+  // canViewLog(): boolean {
+  //   return this.isAdmin() || this.getPermissions().includes('VIEW_LOG');
+  // }
+
+  canEditEventAlarm(): boolean {
+    return this.isAdmin() || this.getPermissions().includes('EVENT_ALARM');
   }
 
-  canEditEvent(): boolean {
-    return this.isAdmin() || this.getPermissions().includes('EDIT_EVENT');
-  }
-
-  canViewAlarm(): boolean {
-    return this.isAdmin() || this.getPermissions().includes('VIEW_ALARM');
+  canManagement(): boolean {
+    return this.isAdmin() || this.getPermissions().includes('MANAGER_SYSTEM');
   }
 
   hasPermission(code: string): boolean {

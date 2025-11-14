@@ -80,7 +80,6 @@ export class AlarmComponent implements OnInit {
       error: (err) => console.error('[LOAD CAMERAS ERROR]', err),
     });
 
-    // Sau khi có camera → load cấu hình báo động
     this.loadAlarmConfig();
   }
 
@@ -129,6 +128,8 @@ export class AlarmComponent implements OnInit {
           this.eventSchedules = [
             { event: 'smoking', start: '08:00', end: '17:00', enabled: true, allowed: true },
             { event: 'checkincheckout', start: '07:30', end: '17:30', enabled: true, allowed: true },
+            { event: 'scan_qr', start: '07:30', end: '17:30', enabled: true, allowed: true },
+            { event: 'person_detection', start: '07:30', end: '17:30', enabled: true, allowed: true },
           ];
         }
 

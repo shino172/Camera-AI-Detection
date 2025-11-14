@@ -1,3 +1,4 @@
+
 import { Component, NgZone, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { VideoFeedComponent } from "../video-feed/video-feed.component";
@@ -8,8 +9,6 @@ import { CameraService } from '../../services/camera.service';
 import { EventLog, EventService } from '../../services/event.service';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { format, toZonedTime } from 'date-fns-tz';
-import { ConfigurationComponent } from "../configuration/configuration.component";
 import { ConfigService } from '../../services/config.service';
 import { FormsModule } from '@angular/forms';
 import { AlarmService } from '../../services/alarm.service';
@@ -24,7 +23,7 @@ import { AuthService } from '../../services/auth.service';
     MatDialogModule,
     MatSnackBarModule,
     FormsModule
-],
+  ],
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.css']
 })
@@ -47,7 +46,16 @@ export class HomeComponent implements OnInit {
   areaConfig: any = {};
 
   soundEnabled = true;
+  lastSoundTime = 0;
+  SOUND_COOLDOWN = 3000; // ms
 
+  private seenEvents: Map<string, number> = new Map();
+  private SEEN_EVENT_TTL = 5 * 1000; // 5s ttl for seen events
+  private cleanupIntervalId: any = null;
+
+  audioSmoking = new Audio('assets/sound/tieng_chuong_nhac_nho-www_tiengdong_com.mp3');
+  audioWarning = new Audio('assets/sound/tieng_chuong_nhac_nho-www_tiengdong_com.mp3');
+  audioGeneral = new Audio('assets/sound/tieng_chuong_nhac_nho-www_tiengdong_com.mp3');
 
   constructor(
     private cameraService: CameraService,
@@ -64,40 +72,59 @@ export class HomeComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadAreas();
-    this.loadConfig();
+    this.loadEvents();
+
+    this.cleanupIntervalId = setInterval(() => this.cleanupSeenEvents(), 10 * 1000);
+
     this.eventService.streamEvents().subscribe({
       next: (newE) => {
+        const eid = (newE && newE.id) ? String(newE.id) : null;
+
+        if (eid) {
+          const t = Date.now();
+          const lastSeen = this.seenEvents.get(eid);
+          if (lastSeen && (t - lastSeen) < this.SEEN_EVENT_TTL) {
+            console.debug('[SSE] Duplicate event skipped (dedupe):', eid, newE.label);
+            return;
+          }
+          this.seenEvents.set(eid, Date.now());
+        }
+
         console.log('[SSE] Received event:', newE);
 
         this.zone.run(() => {
-          // Kiểm tra điều kiện đúng khu vực
           if (this.selectedArea && Number(newE.area_id) === Number(this.selectedArea.id)) {
             this.events.unshift(newE);
             if (this.events.length > 100) this.events.pop();
-
-            // 🔔 Hiển thị thông báo
-            this.showToast(newE);
-
-          if (this.soundEnabled && newE.label === 'smoking') {
-            this.playAlertSound('smoking');
-            this.alarmService.playAudioAlarm().subscribe();
           }
 
-          } else {
-            this.showToast(newE);
+          this.showToast(newE);
+
+          if (this.soundEnabled) {
+            this.handleEventSound(newE);
           }
         });
       },
       error: (err) => console.error('[STREAM ERROR]', err),
     });
-
-    if ('Notification' in window) {
-      Notification.requestPermission();
-    }
-    setInterval(() => this.loadEvents(), 5000);
   }
 
-// -------------------- TOAST HIỂN THỊ --------------------
+  ngOnDestroy(): void {
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+    }
+  }
+
+  private cleanupSeenEvents() {
+    const now = Date.now();
+    this.seenEvents.forEach((ts, id) => {
+      if (now - ts > this.SEEN_EVENT_TTL * 4) {
+        this.seenEvents.delete(id);
+      }
+    });
+  }
+
+  // -------------------- TOAST HIỂN THỊ --------------------
   showToast(event: EventLog) {
     let message = '';
     let panelClass = ['toast-default'];
@@ -107,18 +134,27 @@ export class HomeComponent implements OnInit {
         message = `🚭 Phát hiện ${event.name || 'nhân viên'} đang hút thuốc tại ${event.area_name || 'khu vực chưa xác định'}!`;
         panelClass = ['toast-warning'];
         break;
+
       case 'hand_to_mouth':
         message = `⚠️ Hành vi nghi vấn: ${event.name || 'Nhân viên'} đưa tay lên miệng tại ${event.area_name || 'khu vực chưa xác định'}`;
         panelClass = ['toast-info'];
         break;
+
+      case 'person_detection':
+        message = `🧍 Phát hiện người tại ${event.area_name || 'khu vực chưa xác định'}`;
+        panelClass = ['toast-info'];
+        break;
+
       case 'checkin':
         message = `✅ ${event.name || 'Nhân viên'} đã check-in tại ${event.area_name || 'khu vực'}`;
         panelClass = ['toast-success'];
         break;
+
       case 'checkout':
         message = `👋 ${event.name || 'Nhân viên'} đã check-out tại ${event.area_name || 'khu vực'}`;
         panelClass = ['toast-normal'];
         break;
+
       default:
         message = `📢 Sự kiện: ${event.label} tại ${event.area_name || 'khu vực chưa xác định'}`;
     }
@@ -131,13 +167,53 @@ export class HomeComponent implements OnInit {
     });
   }
 
+  handleEventSound(event: EventLog) {
+    const now = Date.now();
+
+    if (now - this.lastSoundTime < this.SOUND_COOLDOWN) {
+      console.debug('[AUDIO] skipped due to cooldown');
+      return;
+    }
+
+    const eid = event && event.id ? String(event.id) : null;
+    if (eid && this.seenEvents.get(eid) && (now - (this.seenEvents.get(eid) || 0)) < 200) {
+    }
+
+    let soundType = '';
+
+    switch (event.label) {
+      case 'smoking':
+        soundType = 'smoking';
+        break;
+
+      case 'hand_to_mouth':
+        soundType = 'warning';
+        break;
+
+      case 'person_detection':
+        soundType = 'person';
+        break;
+
+      case 'checkin':
+      case 'checkout':
+        soundType = 'normal';
+        break;
+
+      default:
+        soundType = 'general';
+        break;
+    }
+
+    this.playAlertSound(soundType);
+    this.lastSoundTime = now;
+  }
+
   /** -------------------- AREAS -------------------- */
   loadAreas(): void {
     this.configService.getAreas().subscribe({
       next: (res) => {
         this.areas = res || [];
 
-        // ✅ Chọn mặc định khu vực đầu tiên nếu chưa chọn
         if (this.areas.length > 0 && !this.selectedArea) {
           this.selectedArea = this.areas[0];
           this.selectArea(this.selectedArea);
@@ -210,19 +286,10 @@ export class HomeComponent implements OnInit {
     });
   }
 
-  // openEvent(e: EventLog) {
-  //   this.selectedEvent = e;
-  //   this.showVideo = false;
-  //   this.safeVideoUrl = e.video_url
-  //     ? this.sanitizer.bypassSecurityTrustResourceUrl(
-  //       e.video_url.startsWith('http') ? e.video_url : `http://localhost:5000${e.video_url}`
-  //     )
-  //     : null;
-  // }
   openEvent(e: EventLog) {
     this.selectedEvent = e;
     this.showVideo = true;
-    this.mediaView = 'image'; // mặc định xem ảnh
+    this.mediaView = 'image';
 
     this.safeVideoUrl = e.video_url
       ? this.sanitizer.bypassSecurityTrustResourceUrl(
@@ -295,6 +362,7 @@ export class HomeComponent implements OnInit {
       error: (err) => console.error('[CONFIG SAVE ERROR]', err),
     });
   }
+
   /** -------------------- MEDIA HANDLING -------------------- */
   getImageUrl(e: EventLog): string {
     if (!e.image_url) return 'assets/no-image.jpg';
@@ -305,19 +373,37 @@ export class HomeComponent implements OnInit {
   }
 
   playAlertSound(type: string) {
-    let audioFile = '';
+    let audio: HTMLAudioElement;
 
     switch (type) {
       case 'smoking':
-        audioFile = 'assets/sound/tieng_coi_canh_bao-www_tiengdong_com.mp3';
+        audio = this.audioSmoking;
         break;
+
+      case 'hand_to_mouth':
+      case 'person_detection':
+        audio = this.audioWarning;
+        break;
+
+      case 'checkin':
+      case 'checkout':
+        audio = this.audioWarning;
+        break;
+
+      case 'scan_qr':
+          audio = this.audioWarning;
+          break;
+
       default:
-        return; // chỉ phát với sự kiện cần thiết
+        audio = this.audioGeneral;
+        break;
     }
 
-    const audio = new Audio(audioFile);
-    audio.volume = 1.0; // 100%
-    audio.play().catch(err => console.error('[AUDIO PLAY ERROR]', err));
+    // reset và play
+    audio.currentTime = 0;
+    audio.play()
+      .then(() => console.log('[AUDIO] Played:', type))
+      .catch(err => console.warn('[AUDIO ERROR]', err));
   }
 
   getRoleLabel(): string {

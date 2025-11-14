@@ -64,10 +64,6 @@
   <div class="lg:col-span-3 bg-white shadow-md rounded-xl p-4">
     <div class="flex items-center justify-between mb-3">
       <h2 class="font-bold text-lg">📋 Sự kiện ghi nhận</h2>
-      <label class="flex items-center gap-2 text-sm cursor-pointer">
-        <input type="checkbox" [(ngModel)]="soundEnabled" class="accent-blue-600" />
-        Âm thanh cảnh báo
-      </label>
     </div>
 
     <div class="space-y-3 max-h-[500px] overflow-y-auto">
@@ -135,7 +131,6 @@
 
       <!-- Nội dung hiển thị -->
       <div class="relative w-full rounded-lg border shadow-sm bg-black/5 flex items-center justify-center">
-        <!-- Hiển thị ảnh -->
         <img *ngIf="mediaView === 'image' && selectedEvent.image_url"
             [src]="getImageUrl(selectedEvent)"
             class="max-h-[400px] rounded-lg object-contain" />
@@ -143,7 +138,6 @@
         <div *ngIf="mediaView === 'image' && !selectedEvent.image_url"
             class="text-gray-500 italic py-12">⚠️ Không có ảnh sự kiện</div>
 
-        <!-- Hiển thị video -->
         <video *ngIf="mediaView === 'video' && selectedEvent.video_url"
               [src]="safeVideoUrl" controls autoplay
               class="max-h-[400px] w-full rounded-lg border bg-black"></video>
@@ -151,15 +145,6 @@
         <div *ngIf="mediaView === 'video' && !selectedEvent.video_url"
             class="text-gray-500 italic py-12">⚠️ Không có video sự kiện</div>
       </div>
-
-      <!-- Footer -->
-      <div class="flex justify-end mt-6">
-        <button (click)="closeEvent()"
-                class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition">
-          Đóng
-        </button>
-      </div>
     </div>
-
   </div>
 </div>

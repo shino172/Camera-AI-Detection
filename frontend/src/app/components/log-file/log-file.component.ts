@@ -15,7 +15,7 @@ import Swal from 'sweetalert2';
 export class LogFileComponent implements OnInit {
 
   @Input() embedded = false;
-  
+
   logs: EventLog[] = [];
   filteredLogs: EventLog[] = [];
   paginatedLogs: EventLog[] = [];
@@ -46,7 +46,6 @@ export class LogFileComponent implements OnInit {
     this.eventService.getEvents(500, 0).subscribe({
       next: (data) => {
         this.logs = data;
-        // this.areaOptions = Array.from(new Set(data.map(l => l.area_name).filter(Boolean)));
         this.areaOptions = Array.from(
           new Set(
             data
@@ -72,7 +71,6 @@ export class LogFileComponent implements OnInit {
 
   filterLogs(): void {
     const date = this.selectedDate ? new Date(this.selectedDate) : null;
-
     this.filteredLogs = this.logs.filter(log => {
       const logDate = new Date(log.time);
       const matchDate = date ? logDate.toDateString() === date.toDateString() : true;

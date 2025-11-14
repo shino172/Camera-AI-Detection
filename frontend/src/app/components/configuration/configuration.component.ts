@@ -35,7 +35,6 @@ export class ConfigurationComponent implements OnInit {
   ngOnInit(): void {
     this.loadConfig();
     this.loadAreas();
-    this.loadAutoLearn();
   }
 
   loadConfig(): void {
@@ -49,6 +48,7 @@ export class ConfigurationComponent implements OnInit {
             smoking: true,
             violence: false,
             checkincheckout: true,
+            person_detection: true
           };
         }
       },
@@ -80,15 +80,6 @@ export class ConfigurationComponent implements OnInit {
       this.areaConfig.enabled_events.push(eventId);
     }
 
-    if(eventId==='face_recognition'){
-      const newState = !enabled;
-      this.faceService.toggleAutoLearn(newState).subscribe({
-        next:()=>{
-          this.snackBar.open(`🤖 Tự học gương mặt ${newState ? 'đã bật' : 'đã tắt'}`, 'Đóng', { duration: 2000 });
-        },
-        error:(err)=>console.error('[AUTOLEARN TOGGLE ERROR]',err),
-      })
-    }
     this.snackBar.open(`✅ ${enabled ? 'Tắt' : 'Bật'} sự kiện '${eventId}'`, 'Đóng', {
       duration: 2000,
       horizontalPosition: 'left',
@@ -135,34 +126,6 @@ export class ConfigurationComponent implements OnInit {
     });
   }
 
-  // selectArea(area: any) {
-  //   this.selectedArea = area;
-
-  //   // Load cấu hình khu vực
-  //   this.configService.getAreaConfig(area.id).subscribe({
-  //     next: (cfg) => {
-  //       this.areaConfig = cfg || { enabled_events: [], draw_areas: [] };
-  //       if (!this.areaConfig.enabled_events) this.areaConfig.enabled_events = [];
-  //       if (!this.areaConfig.draw_areas) this.areaConfig.draw_areas = [];
-  //       setTimeout(() => this.initCanvas(), 200);
-  //     },
-  //     error: (err) => console.error('[LOAD AREA CONFIG ERROR]', err),
-  //   });
-
-  //   // 🟢 Load danh sách camera theo khu vực
-  //   this.cameraService.getCamerasByArea(area.id).subscribe({
-  //     next: (cams) => {
-  //       this.cameras = cams || [];
-  //       if (this.cameras.length > 0) {
-  //         this.selectedCameraId = this.cameras[0].camera_id;
-  //         this.updateLiveUrl();
-  //       } else {
-  //         this.liveUrl = null;
-  //       }
-  //     },
-  //     error: (err) => console.error('[LOAD CAMERAS ERROR]', err),
-  //   });
-  // }
   onCameraChange() {
     this.updateLiveUrl();
 
@@ -191,30 +154,6 @@ export class ConfigurationComponent implements OnInit {
       }
     }
   }
-
-  // onCameraChange() {
-  //   this.updateLiveUrl();
-
-  //   if (!this.selectedArea || !this.areaConfig) return;
-  //   const camId = Number(this.selectedCameraId);
-  //   const camConfig = this.areaConfig.cameras?.[camId];
-
-  //   if (camConfig?.draw_areas?.length > 0) {
-  //     const canvas = this.drawCanvas?.nativeElement;
-  //     if (canvas) {
-  //       this.rects = camConfig.draw_areas.map((r: any) => ({
-  //         x: r.x * canvas.width,
-  //         y: r.y * canvas.height,
-  //         w: r.w * canvas.width,
-  //         h: r.h * canvas.height,
-  //       }));
-  //       this.drawAllRects();
-  //     }
-  //   } else {
-  //     this.rects = [];
-  //     this.clearCanvas();
-  //   }
-  // }
 
   // Cập nhật live stream camera
   updateLiveUrl() {
@@ -339,7 +278,7 @@ export class ConfigurationComponent implements OnInit {
 
     const dataToSave = {
       ...this.areaConfig,
-      draw_areas: normalized, // lưu chung để dễ load
+      draw_areas: normalized,
     };
 
     this.configService.saveAreaConfig(this.selectedArea.id, dataToSave).subscribe({
@@ -351,44 +290,6 @@ export class ConfigurationComponent implements OnInit {
       error: (err) => console.error('[SAVE AREA CONFIG ERROR]', err),
     });
   }
-
-  // saveAreaConfig(): void {
-  // if (!this.selectedArea) return;
-  // const canvas = this.drawCanvas?.nativeElement;
-  // if (!canvas) return;
-
-  // const camId = Number(this.selectedCameraId)
-  //   let normalized = this.rects.map(r => ({
-  //     x: r.x / canvas.width,
-  //     y: r.y / canvas.height,
-  //     w: r.w / canvas.width,
-  //     h: r.h / canvas.height
-  //   }));
-  //   if (normalized.length === 0) normalized = [{ x: 0, y: 0, w: 1, h: 1 }];
-  //   if (!this.areaConfig.cameras) this.areaConfig.cameras = {};
-  //   this.areaConfig.cameras[camId] = this.areaConfig.cameras[camId] || {};
-  //   this.areaConfig.cameras[camId].draw_areas = normalized;
-
-  //   const dataToSave = {
-  //     ...this.areaConfig,
-  //     draw_areas: normalized
-  //   };
-
-  //   this.configService.saveAreaConfig(this.selectedArea.id, dataToSave).subscribe({
-  //     next: () => {
-  //       this.snackBar.open('✅ Đã lưu cấu hình khu vực (gồm vùng vẽ)', 'Đóng', {
-  //         duration: 3000,
-  //       });
-
-  //       // 🔁 Áp dụng realtime
-  //       // this.configService.applyAreaConfig(this.selectedArea.id, dataToSave).subscribe({
-  //       //   next: () => this.snackBar.open('⚡ Cấu hình đã áp dụng ngay', 'Đóng', { duration: 2000 }),
-  //       //   error: err => console.error('[APPLY CONFIG ERROR]', err),
-  //       // });
-  //     },
-  //     error: (err) => console.error('[SAVE AREA CONFIG ERROR]', err),
-  //   });
-  // }
 
   onImageLoaded() {
     const canvas = this.drawCanvas?.nativeElement;
@@ -419,55 +320,6 @@ export class ConfigurationComponent implements OnInit {
     }
 
     this.initCanvas();
-  }
-
-  // onImageLoaded() {
-  //   const canvas = this.drawCanvas?.nativeElement;
-  //   if (!canvas) return;
-
-  //   // Lấy kích thước hiển thị thực của ảnh
-  //   const img = canvas.parentElement?.querySelector('img') as HTMLImageElement;
-  //   if (img) {
-  //     canvas.width = img.clientWidth;
-  //     canvas.height = img.clientHeight;
-  //   } else {
-  //     canvas.width = canvas.clientWidth;
-  //     canvas.height = canvas.clientHeight;
-  //   }
-
-  //   // Sau khi canvas được resize chuẩn → convert normalized → pixel để hiển thị lại vùng đã vẽ
-  //   if (this.areaConfig?.draw_areas?.length > 0) {
-  //     this.rects = this.areaConfig.draw_areas.map((r: any) => ({
-  //       x: r.x * canvas.width,
-  //       y: r.y * canvas.height,
-  //       w: r.w * canvas.width,
-  //       h: r.h * canvas.height
-  //     }));
-  //   }
-  //   this.initCanvas();
-  // }
-  /** 🔹 Lấy trạng thái tự học ban đầu */
-  loadAutoLearn(): void {
-    this.faceService.getAutoLearnStatus().subscribe({
-      next: (res) => (this.autoLearn = res.auto_learn),
-      error: (err) => console.error('[AUTOLEARN STATUS ERROR]', err),
-    });
-  }
-
-  /** 🔹 Toggle bật/tắt tự học */
-  toggleAutoLearn(): void {
-    const newState = !this.autoLearn;
-    this.faceService.toggleAutoLearn(newState).subscribe({
-      next: () => {
-        this.autoLearn = newState;
-        this.snackBar.open(
-          `🤖 Tự học gương mặt ${newState ? 'đã bật' : 'đã tắt'}`,
-          'Đóng',
-          { duration: 2000 }
-        );
-      },
-      error: (err) => console.error('[AUTOLEARN TOGGLE ERROR]', err),
-    });
   }
 
 }

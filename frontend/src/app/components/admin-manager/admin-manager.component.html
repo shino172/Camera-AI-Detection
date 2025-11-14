@@ -57,7 +57,7 @@
     class="flex-1 ml-64 bg-gray-50 p-8 overflow-y-auto no-scrollbar transition-all duration-300">
 
     <!-- Sticky Header -->
-    <div class="flex items-center justify-between mb-6 border-b pb-4 sticky top-0 bg-gray-50 z-20">
+    <div class="flex items-center justify-between mb-6 border-b pb-4 top-0 bg-gray-50 z-20">
       <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
         <i class="fa-solid"
            [ngClass]="activeTab === 'area' ? 'fa-map-location-dot text-blue-500' :
@@ -247,10 +247,16 @@
 
               <!-- TRẠNG THÁI -->
               <td class="p-2 text-center">
-                <select *ngIf="editingId === c.id" [(ngModel)]="editCamera.status" class="border rounded p-1">
+                <select
+                  *ngIf="editingId === c.id"
+                  [(ngModel)]="editCamera.status"
+                  (change)="toggleCameraStatus(c.id, editCamera.status)"
+                  class="border rounded p-1"
+                >
                   <option value="active">🟢 Hoạt động</option>
                   <option value="inactive">⚫ Dừng</option>
                 </select>
+
                 <span *ngIf="editingId !== c.id" [ngClass]="c.status === 'active' ? 'text-green-600' : 'text-gray-500'">
                   {{ c.status === 'active' ? '🟢 Hoạt động' : '⚫ Dừng' }}
                 </span>

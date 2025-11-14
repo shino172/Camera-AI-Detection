@@ -124,7 +124,7 @@ export class AdminManagerComponent implements OnInit {
     this.http.put(`${this.cameraApi}/${this.editingId}`, this.editCamera).subscribe(() => {
       this.editingId = null;
       this.editCamera = {};
-      this.loadCameras(); // reload danh sách sau khi lưu
+      this.loadCameras();
     });
   }
 
@@ -134,15 +134,19 @@ export class AdminManagerComponent implements OnInit {
       this.http.delete(`${this.cameraApi}/${id}`).subscribe(() => this.loadCameras());
     }
   }
+
   cancelEditCamera() {
     this.editingId = null;
     this.editCamera = {};
   }
+  
   toggleCameraStatus(id: number, status: 'active' | 'inactive') {
-    if (!id) return;
+    console.log("Toggle camera:", id, status);
+
     this.http.put(`${this.cameraApi}/${id}/status`, { status }).subscribe({
       next: () => {
-        this.loadCameras(); // reload lại danh sách
+        this.loadCameras();
+        console.log("Camera status updated:", status);
       },
       error: (err) => {
         console.error('[TOGGLE CAMERA STATUS ERROR]', err);

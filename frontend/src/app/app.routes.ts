@@ -7,7 +7,7 @@ import { LogFileComponent } from './components/log-file/log-file.component';
 import { LoginComponent } from './components/login/login.component';
 import { PersonsListComponent } from './components/persons-list/persons-list.component';
 import { PlayBackFeedComponent } from './components/play-back-feed/play-back-feed.component';
-import { UserComponent } from './components/user/user.component';
+// import { UserComponent } from './components/user/user.component';
 import { AdminGuard } from './guards/admin.guard';
 import { AuthGuard } from './guards/auth.guard';
 import { AdminManagerComponent } from './components/admin-manager/admin-manager.component';
@@ -48,7 +48,7 @@ export const routes: Routes = [
       { path: 'face-recognize', component: FaceLogComponent, canActivate: [PermissionGuard], data: { permission: 'MANAGE_SYSTEM' } },
 
       // 👤 User profile
-      { path: 'user', component: UserComponent },
+      { path: 'event-list', component: EventListComponent  },
 
       { path: '', redirectTo: 'home', pathMatch: 'full' },
       { path: '**', redirectTo: 'home' }
