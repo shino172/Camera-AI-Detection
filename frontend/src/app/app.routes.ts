@@ -3,12 +3,7 @@ import { EventAlarmComponent } from './components/event-alarm/event-alarm.compon
 import { EventListComponent } from './components/event-list/event-list.component';
 import { HomeComponent } from './components/home/home.component';
 import { LayoutsComponent } from './components/layouts/layouts.component';
-import { LogFileComponent } from './components/log-file/log-file.component';
 import { LoginComponent } from './components/login/login.component';
-import { PersonsListComponent } from './components/persons-list/persons-list.component';
-import { PlayBackFeedComponent } from './components/play-back-feed/play-back-feed.component';
-// import { UserComponent } from './components/user/user.component';
-import { AdminGuard } from './guards/admin.guard';
 import { AuthGuard } from './guards/auth.guard';
 import { AdminManagerComponent } from './components/admin-manager/admin-manager.component';
 import { FaceLogComponent } from './components/face-log/face-log.component';
