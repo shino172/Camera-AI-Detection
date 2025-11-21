@@ -1,5 +1,5 @@
 # app_detect_intergated.py
-import os, cv2, time, queue,threading,json, uuid,base64,joblib,face_recognition,cloudinary, psycopg2, tempfile, ctypes
+import os, cv2, time, queue, threading, json, uuid,base64, joblib, face_recognition, cloudinary, psycopg2, tempfile, ctypes, random
 import numpy as np
 from psycopg2 import pool, OperationalError
 from psycopg2.extras import Json
@@ -38,23 +38,12 @@ cloudinary.config(
     secure=True
 )
 
-# conn = psycopg2.connect(
-#     host="localhost",
-#     database="postgres",
-#     user="postgres",
-#     password="your_password"
-# )
-# print("✅ Kết nối thành công!")
-
 # Models & files (adjust paths if needed)
 # SEQ_LEN = 30
 LSTM_MODEL = "lstm_action.h5"
 SCALER_FILE = "pose_scaler.pkl"
 LABEL_FILE = "pose_labels.pkeml"
 
-# CIG_MODEL = "best.pt"
-# BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# CIG_MODEL = os.path.join(BASE_DIR, "runs", "train", "smoking_detector", "weights", "best.pt")
 CIG_MODEL = "best.pt"
 POSE_MODEL = "yolov8n-pose.pt"
 YOLO_PERSON_MODEL = "yolo11n.pt"
@@ -108,11 +97,18 @@ qr_queue = queue.Queue(maxsize=1)
 
 event_broadcast_queue = queue.Queue()
 
-
 VIDEO_BUFFER_SECONDS = 5
 VIDEO_AFTER_SECONDS = 25
 VIDEO_TOTAL_SECONDS = VIDEO_BUFFER_SECONDS + VIDEO_AFTER_SECONDS
 VIDEO_FPS = FPS
+
+from collections import defaultdict
+
+last_person_state = defaultdict(lambda: {
+    "last_event_time": 0,
+    "last_hash": None
+})
+
 
 # =================== AREA DRAWING HELPERS ===================
 def get_draw_areas_for_area(area_id):
@@ -190,6 +186,74 @@ camera_lock = threading.Lock()
 camera_queues = {}
 frame_buffers = {}
 EVENTS = []
+
+cameras_threads ={}
+active_events = {} 
+EVENT_TIMEOUT = 6.0
+
+recorders = {}
+for cam_id in cameras:
+    recorders[cam_id] = {
+        "is_recording": False,
+        "start_time": None,
+        "last_detect_time": None,
+        "writer": None,
+        "path": None,
+        "event_id": None,
+    }
+
+
+def start_event_recording(camera_id, event):
+    active_events[camera_id] = {
+        "event": event,
+        "frames": [],
+        "last_seen": time.time()
+    }
+    print(f"🎬 START RECORDING EVENT {event['label']} on camera {camera_id}")
+
+def update_event_recording(camera_id, frame):
+    if camera_id not in active_events:
+        return
+    
+    active_events[camera_id]["frames"].append(frame.copy())
+    active_events[camera_id]["last_seen"] = time.time()
+
+def stop_event_recording(camera_id):
+    if camera_id not in active_events:
+        return
+    
+    data = active_events[camera_id]
+    event = data["event"]
+    frames = data["frames"]
+
+    if not frames:
+        del active_events[camera_id]
+        return
+
+    # Lưu video
+    ev_id = event["id"]
+    filename = f"{ev_id}.mp4"
+    abs_path = f"static/events/{filename}"
+
+    h, w = frames[0].shape[:2]
+    out = cv2.VideoWriter(
+        abs_path,
+        cv2.VideoWriter_fourcc(*'avc1'),
+        VIDEO_FPS,
+        (w, h)
+    )
+
+    for f in frames:
+        out.write(f)
+    out.release()
+
+    url = f"http://localhost:5000/static/events/{filename}"
+    event["video_url"] = url
+    update_event_media(ev_id, video_url=url)
+
+    print(f"🎬 END RECORDING EVENT {event['label']} saved → {abs_path}")
+
+    del active_events[camera_id]
 
 def get_area_by_camera(camera_id):
     """Lấy area_id từ bảng cameras"""
@@ -762,7 +826,9 @@ def save_violation_clip(event, current_frame):
             out.write(f)
         out.release()
 
-        rel_path = f"/static/events/{filename}"
+        # rel_path = f"/static/events/{filename}"'
+
+        rel_path = f"http://localhost:5000/static/events/{filename}"
         event["video_url"] = rel_path
 
         # ✅ Snapshot đầu tiên để hiển thị ở frontend
@@ -1042,7 +1108,24 @@ class CameraThread(threading.Thread):
             self.cap.release()
         except:
             pass
-    
+
+def recorder_thread(event_id):
+    while True:
+        for cam_id, rec in recorders.items():
+            if rec["is_recording"]:
+                # Nếu không phát hiện trong 2 giây → stop
+                if time.time() - rec["last_detect_time"] > 2:
+                    print("[REC] Stop recording for camera", cam_id)
+                    rec["is_recording"] = False
+
+                    if rec["writer"]:
+                        rec["writer"].release()
+                        rec["writer"] = None
+
+                    # Lưu video URL vào database
+                    update_event_media(event_id, video_url="/" + rec["path"])
+        time.sleep(0.2)
+
 def get_frame(self):
     return self.latest_frame
 
@@ -1154,132 +1237,122 @@ def hand2mouth_thread(pose_model):
         except Exception as e:
             continue
 # ---------------- Cigarette thread (main event logger) ----------------
-def cigarette_thread(pose_model, cig_model=None , lstm_model=None, scaler=None, lbl_map=None):
-    last_save = {}
-    while True:
-        try:
-            camera_id, frame = cig_queue.get(timeout=1)
-        except queue.Empty:
-            continue
+# def cigarette_thread(pose_model, cig_model=None , lstm_model=None, scaler=None, lbl_map=None):
+#     last_save = {}
+#     while True:
+#         try:
+#             camera_id, frame = cig_queue.get(timeout=1)
+#         except queue.Empty:
+#             continue
 
-        H, W = frame.shape[:2]
-        try:
-            res_pose = pose_model.track(frame, tracker="bytetrack.yaml", persist=True, verbose=False)[0]
-        except Exception:
-            res_pose = None
+#         H, W = frame.shape[:2]
 
-        if res_pose and getattr(res_pose, "keypoints", None) is not None:
-            kpts_np = res_pose.keypoints.xy.cpu().numpy()
-            boxes_np = res_pose.boxes.xyxy.cpu().numpy() if res_pose.boxes.xyxy is not None else []
-            ids_np = res_pose.boxes.id.cpu().numpy() if res_pose.boxes.id is not None else [None] * len(boxes_np)
+#         update_event_recording(camera_id, frame)
 
-            with face_lock:
-                frs = face_results.copy()
+#         try:
+#             res_pose = pose_model.track(frame, tracker="bytetrack.yaml", persist=True, verbose=False)[0]
+#         except Exception:
+#             res_pose = None
 
-            for kpts, bx, tid in zip(kpts_np, boxes_np, ids_np):
-                
-                area_id = None
+#         if res_pose and getattr(res_pose, "keypoints", None) is not None:
+#             kpts_np = res_pose.keypoints.xy.cpu().numpy()
+#             boxes_np = res_pose.boxes.xyxy.cpu().numpy() if res_pose.boxes.xyxy is not None else []
+#             ids_np = res_pose.boxes.id.cpu().numpy() if res_pose.boxes.id is not None else [None] * len(boxes_np)
 
-                if tid is None or np.isnan(bx).any() or np.isinf(bx).any():
-                    continue
+#             with face_lock:
+#                 frs = face_results.copy()
 
-                tid = int(tid)
-                x1, y1, x2, y2 = map(int, bx[:4])
-                now = time.time()
-               
-                if check_hand_to_mouth(kpts) and now - last_save.get(tid, 0) > COOLDOWN:
-                    person_name, person_id = "Unknown", None
-                    for fface in frs:
-                        top, right, bottom, left = fface["loc"]
-                        face_box = (left, top, right, bottom)
-                        if calc_iou((x1, y1, x2, y2), face_box) > 0.1:
-                            person_name = fface.get("name", "Unknown")
-                            person_id = fface.get("person_id")
-                            break
-                    area_id = get_area_by_camera(camera_id)
+#             for kpts, bx, tid in zip(kpts_np, boxes_np, ids_np):
 
-                    if not area_id:
-                        print(f"🚫[smoking] Không tìm thấy khu vực cho camera {camera_id}")
-                        continue
+#                 area_id = None
 
-                    if not is_event_enabled(area_id, "smoking"):
-                        # nếu sự kiện này bị tắt
-                        print(f"🚫 Khu vực {area_id} đã tắt sự kiện smoking")
-                        continue
+#                 if tid is None or np.isnan(bx).any() or np.isinf(bx).any():
+#                     continue
 
-                    if not is_event_allowed(area_id, "smoking"):
-                        print(f"⏰ [SKIP] Ngoài giờ cho phép smoking tại khu vực {area_id}")
-                        continue
+#                 tid = int(tid)
+#                 x1, y1, x2, y2 = map(int, bx[:4])
+#                 now = time.time()
 
-                    # ✅ Kiểm tra giới hạn vùng vẽ (nếu có)
-                    draw_areas = get_draw_areas_for_area(area_id)
-                    if draw_areas and len(draw_areas) > 0:
-                        if not bbox_overlaps_any((x1, y1, x2, y2), draw_areas, W, H, min_fraction=0.05):
-                            print(f"⚠️ [CIGARETTE] Bỏ qua bbox ngoài vùng vẽ tại area {area_id}")
-                            continue
-                    else:
-                        pass
+#                 # Điều kiện hành vi
+#                 if check_hand_to_mouth(kpts) and now - last_save.get(tid, 0) > COOLDOWN:
 
-                    area_id = get_area_by_camera(camera_id)
-                    area_name = get_area_name(area_id)
+#                     # Tìm mặt
+#                     person_name, person_id = "Unknown", None
+#                     for fface in frs:
+#                         top, right, bottom, left = fface["loc"]
+#                         if calc_iou((x1, y1, x2, y2), (left, top, right, bottom)) > 0.1:
+#                             person_name = fface.get("name", "Unknown")
+#                             person_id = fface.get("person_id")
+#                             break
 
-                    ev_id = str(uuid.uuid4())
-                    event = {
-                        "id": ev_id,
-                        "label": "smoking",
-                        "method": "iou_pose",
-                        "time": datetime.now().isoformat(),
-                        "bbox": [x1, y1, x2, y2],
-                        "name": person_name,
-                        "person_id": person_id,
-                        "camera_id": camera_id,
-                        "area_id": area_id,
-                        "area_name": area_name,
-                        "image_url": None,
-                        "video_url": None,
-                    }
+#                     area_id = get_area_by_camera(camera_id)
+#                     if not area_id:
+#                         continue
 
-                    img_path = f"warning_hand_{tid}_{int(time.time())}.jpg"
-                    save_queue.put(("image", {
-                        "frame": frame.copy(),
-                        "bbox": (x1, y1, x2, y2),
-                        "event": event,
-                        "path": img_path,
-                        "display_label": "Warning Smoking",
-                    }))
-                    save_event_to_db(event)
+#                     if not is_event_enabled(area_id, "smoking"):
+#                         continue
+#                     if not is_event_allowed(area_id, "smoking"):
+#                         continue
 
-                    threading.Thread(
-                        target=save_violation_clip,
-                        args=(event, frame.copy()),
-                        daemon=True
-                    ).start()
-                    area_id = get_area_by_camera(event.get("camera_id"))
-                    area_name = get_area_name(area_id)
+#                     # Vùng vẽ (nếu có)
+#                     draw_areas = get_draw_areas_for_area(area_id)
+#                     if draw_areas and len(draw_areas) > 0:
+#                         if not bbox_overlaps_any((x1, y1, x2, y2), draw_areas, W, H, min_fraction=0.05):
+#                             continue
 
-                    event["area_id"] = area_id
-                    event["area_name"] = area_name
+#                     area_name = get_area_name(area_id)
 
-                    event_broadcast_queue.put(event)
-                try:
-                    if camera_id:
-                        area_cfg = CURRENT_CONFIG.get("areas", {}).get(str(camera_id), {})
-                        linkage = area_cfg.get("linkage", {})
-                        normal_linkage = linkage.get("normal", {})
+#                     # Tạo event
+#                     ev_id = str(uuid.uuid4())
+#                     event = {
+#                         "id": ev_id,
+#                         "label": "smoking",
+#                         "method": "iou_pose",
+#                         "time": datetime.now().isoformat(),
+#                         "bbox": [x1, y1, x2, y2],
+#                         "name": person_name,
+#                         "person_id": person_id,
+#                         "camera_id": camera_id,
+#                         "area_id": area_id,
+#                         "area_name": area_name,
+#                         "image_url": None,
+#                         "video_url": None,
+#                     }
 
-                        if normal_linkage.get("audibleWarning", False):  
-                            play_audio_alarm()
-                            print(f"🔊 [ALERT] Phát âm thanh cảnh báo smoking tại khu vực {camera_id}")
-                        # else:
-                        #     print(f"🔇 [INFO] Âm thanh bị tắt tại khu vực {camera_id}")
-                    else:
-                        print("ℹ️ [ALERT] Bỏ qua phát âm thanh vì camera chưa gán khu vực.")
-                except Exception as e:
-                    print("[ALERT AUDIO ERROR]", e)
+#                     # Lưu ảnh
+#                     img_path = f"warning_hand_{tid}_{int(time.time())}.jpg"
+#                     save_queue.put(("image", {
+#                         "frame": frame.copy(),
+#                         "bbox": (x1, y1, x2, y2),
+#                         "event": event,
+#                         "path": img_path,
+#                         "display_label": "Warning Smoking",
+#                     }))
 
-                    last_save[tid] = now
-        global last_pose_result
-        last_pose_result = {"alerts": []}
+#                     save_event_to_db(event)
+
+#                     # 🚀 Lưu VIDEO (giống logic cũ)
+#                     threading.Thread(
+#                         target=save_violation_clip,
+#                         args=(event, frame.copy()),
+#                         daemon=True
+#                     ).start()
+
+#                     event_broadcast_queue.put(event)
+
+#                     # Phát âm thanh
+#                     try:
+#                         area_cfg = CURRENT_CONFIG.get("areas", {}).get(str(camera_id), {})
+#                         linkage = area_cfg.get("linkage", {}).get("normal", {})
+#                         if linkage.get("audibleWarning", False):
+#                             play_audio_alarm()
+#                     except:
+#                         pass
+
+#                     last_save[tid] = now
+
+#         global last_pose_result
+#         last_pose_result = {"alerts": []}
 
 # log checkin - checkout
 def log_checkin_checkout(r, frame, camera_id=None):
@@ -1308,15 +1381,12 @@ def log_checkin_checkout(r, frame, camera_id=None):
 
     # === 3️⃣ CHECK-IN ===
     if name not in last_seen or last_seen[name].get("day") != day_key:
-        # area_id = get_area_by_camera(camera_id)
-        # area_name = get_area_name(area_id)
         ev = {
             "id": str(uuid.uuid4()),
             "camera_id": camera_id,
             "label": "checkin",
             "method": "face_recognition",
             "time": ts,
-
             "image_url": None,
             "video_url": None,
             "name": name,
@@ -1357,7 +1427,6 @@ def log_checkin_checkout(r, frame, camera_id=None):
         print(f"✅ {name} CHECK-IN tại khu vực {area_id}")
 
     else:
-        # cập nhật thời gian cuối nhìn thấy
         last_seen[name]["time"] = now
 
     # === 4️⃣ CHECK-OUT ===
@@ -1394,13 +1463,450 @@ def log_checkin_checkout(r, frame, camera_id=None):
             last_seen[person]["checkout"] = True
             print(f"👋 {person} CHECK-OUT sau 400 giây")
 
-#  person detection
+# def person_detection_thread(yolo_model):
+#     print("[PERSON] Thread running...")
+#     last_trigger = {}
+#     session_cooldown = {}  # Cooldown cho session theo camera
+
+#     def recognize_faces_in_frame(frame_bgr, person_bbox):
+#         """Nhận diện khuôn mặt trong frame và trả về kết quả (giống hàm log_checkin_checkout)"""
+#         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        
+#         # Lấy tất cả khuôn mặt trong frame
+#         face_locs = face_recognition.face_locations(rgb, model='hog')
+#         face_encs = face_recognition.face_encodings(rgb, face_locs)
+        
+#         # Load cache DB faces
+#         load_db_cache()
+#         known_encs = _db_cache_encodings
+#         known_names = _db_cache_names
+#         known_empids = _db_cache_empids
+
+#         results = []
+#         for (top, right, bottom, left), enc in zip(face_locs, face_encs):
+#             name, empid = "Unknown", None
+            
+#             if known_encs:
+#                 dists = [distance.euclidean(enc, known_enc) for known_enc in known_encs]
+#                 best_idx = int(np.argmin(dists))
+#                 if dists[best_idx] < COMPARE_TOLERANCE:
+#                     name = known_names[best_idx]
+#                     empid = known_empids[best_idx]
+
+#             # Kiểm tra xem face có nằm trong person bbox không
+#             face_center_x = (left + right) // 2
+#             face_center_y = (top + bottom) // 2
+#             p_x1, p_y1, p_x2, p_y2 = person_bbox
+            
+#             if (p_x1 <= face_center_x <= p_x2 and p_y1 <= face_center_y <= p_y2):
+#                 results.append({
+#                     "name": name,
+#                     "employee_id": empid,
+#                     "person_id": empid,
+#                     "face_loc": (top, right, bottom, left)
+#                 })
+#                 print(f"🎭 [FACE MATCH] {name} trong person bbox {person_bbox}")
+
+#         return results
+
+#     while True:
+#         try:
+#             camera_id, frame = person_queue.get(timeout=1)
+#         except queue.Empty:
+#             continue
+
+#         H, W = frame.shape[:2]
+#         now = time.time()
+
+#         # Cooldown session - tránh spam events liên tục
+#         if now - session_cooldown.get(camera_id, 0) < COOLDOWN:
+#             continue
+
+#         try:
+#             result = yolo_model(frame, verbose=False)[0]
+#         except Exception as e:
+#             print("❌ YOLO Person detect failed:", e)
+#             continue
+
+#         if result.boxes is None:
+#             continue
+
+#         boxes = result.boxes.xyxy.cpu().numpy()
+#         classes = result.boxes.cls.cpu().numpy()
+#         ids = result.boxes.id.cpu().numpy() if result.boxes.id is not None else [None] * len(boxes)
+
+#         # Lọc chỉ persons và thu thập tất cả detections
+#         person_detections = []
+#         for box, cls_id, tid in zip(boxes, classes, ids):
+#             if int(cls_id) != 0:
+#                 continue
+            
+#             if tid is None:
+#                 tid = int(time.time() * 1000)
+#             tid = int(tid)
+            
+#             x1, y1, x2, y2 = map(int, box[:4])
+#             person_detections.append({
+#                 "tid": tid,
+#                 "bbox": (x1, y1, x2, y2),
+#                 "coords": [x1, y1, x2, y2]
+#             })
+
+#         # Nếu không có person nào, bỏ qua
+#         if not person_detections:
+#             continue
+
+#         area_id = get_area_by_camera(camera_id)
+#         if not area_id:
+#             print(f"🚫[PERSON] Không tìm thấy khu vực cho camera {camera_id}")
+#             continue
+
+#         if not is_event_enabled(area_id, "person_detection"):
+#             print(f"⛔ Sự kiện person_detection bị tắt tại area {area_id}")
+#             continue
+
+#         if not is_event_allowed(area_id, "person_detection"):
+#             print(f"⏳ Ngoài giờ cho phép person_detection tại area {area_id}")
+#             continue
+
+#         # Lọc qua vùng vẽ và cooldown
+#         draw_areas = get_draw_areas_for_area(area_id)
+#         valid_detections = []
+        
+#         for detection in person_detections:
+#             x1, y1, x2, y2 = detection["bbox"]
+            
+#             # Kiểm tra vùng vẽ
+#             if draw_areas and len(draw_areas) > 0:
+#                 if not bbox_overlaps_any((x1, y1, x2, y2), draw_areas, W, H, min_fraction=0.05):
+#                     continue
+            
+#             # Kiểm tra cooldown cho tracking ID
+#             if now - last_trigger.get(detection["tid"], 0) < COOLDOWN:
+#                 continue
+                
+#             valid_detections.append(detection)
+#             last_trigger[detection["tid"]] = now  # Cập nhật cooldown cho từng ID
+
+#         # Nếu không có detection nào hợp lệ, bỏ qua
+#         if not valid_detections:
+#             continue
+
+#         print(f"👥 [PERSON] Phát hiện {len(valid_detections)} người tại camera {camera_id}")
+
+#         # ============================
+#         # 🎯 TẠO 1 SỰ KIỆN DUY NHẤT CHO TẤT CẢ NGƯỜI
+#         # ============================
+        
+#         # Nhận diện khuôn mặt cho tất cả người (SỬ DỤNG HỆ THỐNG ĐÃ HỌC)
+#         recognized_people = []
+        
+#         # Tạo frame với tất cả bounding boxes
+#         frame_with_boxes = frame.copy()
+        
+#         for detection in valid_detections:
+#             x1, y1, x2, y2 = detection["bbox"]
+#             person_name, person_id = "Unknown", None
+            
+#             # 🎯 SỬA LỖI: Gọi hàm recognize_faces_in_frame để lấy face từ hệ thống đã học
+#             face_results = recognize_faces_in_frame(frame, (x1, y1, x2, y2))
+            
+#             if face_results:
+#                 # Lấy kết quả face recognition đầu tiên trong person bbox
+#                 person_name = face_results[0]["name"]
+#                 person_id = face_results[0]["person_id"]
+#                 print(f"✅ [FACE RECOG] Nhận diện: {person_name} trong person bbox")
+#             else:
+#                 print(f"❌ [FACE RECOG] Không nhận diện được khuôn mặt trong person bbox")
+            
+#             recognized_people.append({
+#                 "name": person_name,
+#                 "person_id": person_id,
+#                 "bbox": detection["coords"]
+#             })
+
+#             # Vẽ bounding box cho MỖI người
+#             color = (0, 255, 0) if person_name != "Unknown" else (0, 0, 255)
+#             cv2.rectangle(frame_with_boxes, (x1, y1), (x2, y2), color, 3)
+            
+#             # Vẽ label với background để dễ đọc
+#             label = person_name if person_name != "Unknown" else "Unknown"
+#             label_text = f"{label}"
+            
+#             # Tính kích thước text
+#             (text_width, text_height), baseline = cv2.getTextSize(
+#                 label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2
+#             )
+            
+#             # Vẽ background cho text
+#             cv2.rectangle(frame_with_boxes, 
+#                          (x1, y1 - text_height - 10), 
+#                          (x1 + text_width, y1), 
+#                          color, -1)
+            
+#             # Vẽ text
+#             cv2.putText(frame_with_boxes, label_text, (x1, y1 - 5),
+#                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+#             print(f"🎯 [PERSON BOX] Vẽ bbox cho {label} tại ({x1}, {y1}, {x2}, {y2})")
+
+#         # Đếm số người đã nhận diện được
+#         known_count = sum(1 for p in recognized_people if p["name"] != "Unknown")
+#         unknown_count = len(recognized_people) - known_count
+
+#         # Tạo event DUY NHẤT
+#         ev_id = str(uuid.uuid4())
+        
+#         event = {
+#             "id": ev_id,
+#             "label": "person_detection",
+#             "method": "object",
+#             "time": datetime.now().isoformat(),
+#             "bbox": None,  # Không có bbox cụ thể vì có nhiều người
+#             "name": f"Group: {known_count} known, {unknown_count} unknown",
+#             "person_id": None,
+#             "camera_id": camera_id,
+#             "area_id": area_id,
+#             "area_name": get_area_name(area_id),
+#             "image_url": None,
+#             "video_url": None,
+#             "detected_count": len(valid_detections),
+#             "known_count": known_count,
+#             "unknown_count": unknown_count,
+#             "people": recognized_people
+#         }
+
+#         # ============================
+#         # 💾 LƯU ẢNH VÀ VIDEO - CHỈ 1 LẦN
+#         # ============================
+        
+#         # Lưu ảnh với tất cả boxes
+#         img_name = f"person_group_{camera_id}_{int(now)}.jpg"
+        
+#         save_queue.put(("image", {
+#             "frame": frame_with_boxes,
+#             "bbox": (0, 0, W, H),  # Toàn bộ frame
+#             "event": event,
+#             "path": img_name,
+#             "display_label": f"GROUP: {len(valid_detections)} PEOPLE",
+#         }))
+
+#         event["image_path"] = f"static/events/{img_name}"
+#         event["image_url"] = f"http://localhost:5000/{event['image_path']}"
+
+#         # Lưu event vào database - CHỈ 1 LẦN
+#         save_event_to_db(event)
+
+#         # Lưu video clip - CHỈ 1 LẦN
+#         threading.Thread(
+#             target=save_violation_clip,
+#             args=(event, frame_with_boxes.copy()),
+#             daemon=True
+#         ).start()
+
+#         # Gửi SSE về frontend - CHỈ 1 LẦN
+#         event_broadcast_queue.put(event)
+
+#         print(f"🧍 [PERSON GROUP] {len(valid_detections)} người ({known_count} known) – Camera {camera_id}")
+
+#         # ============================
+#         # 🔊 PHÁT ÂM THANH CẢNH BÁO (nếu bật)
+#         # ============================
+#         try:
+#             area_cfg = CURRENT_CONFIG.get("areas", {}).get(str(area_id), {})
+#             linkage = area_cfg.get("linkage", {})
+#             normal_linkage = linkage.get("normal", {})
+
+#             if normal_linkage.get("audibleWarning", False):
+#                 play_audio_alarm()
+#                 print(f"🔊 [ALERT] Phát âm thanh cảnh báo {len(valid_detections)} người")
+#         except Exception as e:
+#             print("[ALERT AUDIO ERROR]", e)
+
+#         # Cập nhật session cooldown
+#         session_cooldown[camera_id] = now
+
+#         # Cleanup last_trigger dictionary (tránh memory leak)
+#         cleanup_time = now - 300  # 5 phút
+#         last_trigger = {tid: time for tid, time in last_trigger.items() if time > cleanup_time}
+
+# ==========================================
+# CẤU HÌNH CHO GHI HÌNH ĐỘNG (DYNAMIC REC)
+# ==========================================
+VIDEO_FPS = 20
+POST_EVENT_BUFFER = 5   # Ghi thêm 5 giây sau khi hết sự kiện
+VIDEO_ROOT_DIR = os.path.join(os.getcwd(), "static", "events")
+os.makedirs(VIDEO_ROOT_DIR, exist_ok=True)
+
+# ==========================================
+# 1. UPDATED CIGARETTE THREAD
+# ==========================================
+def cigarette_thread(pose_model, cig_model=None, lstm_model=None, scaler=None, lbl_map=None):
+    """
+    Detects smoking behavior: Records from start of action until action ends + buffer.
+    """
+    print("[SMOKING] Thread running with Dynamic Recording...")
+    
+    # Dictionary to manage recording state for each camera
+    # Key: camera_id, Value: { 'writer': VideoWriter, 'event_id': str, 'last_seen': timestamp, 'file_path': str }
+    recorders = {} 
+    
+    while True:
+        try:
+            # Get frame from queue
+            camera_id, frame = cig_queue.get(timeout=1)
+        except queue.Empty:
+            continue
+
+        H, W = frame.shape[:2]
+        now = time.time()
+        is_smoking_detected = False
+        detected_bbox = None
+        person_info = ("Unknown", None)
+
+        # --- A. DETECTION LOGIC ---
+        try:
+            # 1. Track Pose
+            res_pose = pose_model.track(frame, tracker="bytetrack.yaml", persist=True, verbose=False)[0]
+            
+            if res_pose and getattr(res_pose, "keypoints", None) is not None:
+                kpts_np = res_pose.keypoints.xy.cpu().numpy()
+                boxes_np = res_pose.boxes.xyxy.cpu().numpy() if res_pose.boxes.xyxy is not None else []
+                
+                for kpts, bx in zip(kpts_np, boxes_np):
+                    x1, y1, x2, y2 = map(int, bx[:4])
+                    
+                    # 2. Check Hand-to-Mouth
+                    if check_hand_to_mouth(kpts):
+                        area_id = get_area_by_camera(camera_id)
+                        
+                        # 3. Check Config (Enabled/Allowed/Draw Area)
+                        if area_id and is_event_enabled(area_id, "smoking") and is_event_allowed(area_id, "smoking"):
+                            draw_areas = get_draw_areas_for_area(area_id)
+                            if not draw_areas or bbox_overlaps_any((x1, y1, x2, y2), draw_areas, W, H, min_fraction=0.05):
+                                
+                                is_smoking_detected = True
+                                detected_bbox = [x1, y1, x2, y2]
+                                
+                                # 4. Identify Person (Face Match)
+                                with face_lock:
+                                    for fface in face_results:
+                                        if fface.get("camera_id") == camera_id:
+                                            top, right, bottom, left = fface["loc"]
+                                            if calc_iou((x1, y1, x2, y2), (left, top, right, bottom)) > 0.1:
+                                                person_info = (fface.get("name", "Unknown"), fface.get("person_id"))
+                                                break
+                                break 
+        except Exception as e:
+            print(f"[SMOKING DETECT ERROR] {e}")
+
+        # --- B. RECORDING STATE MACHINE ---
+        if is_smoking_detected:
+            # >>> CASE 1: DETECTED <<<
+            
+            if camera_id not in recorders:
+                # START NEW RECORDING
+                area_id = get_area_by_camera(camera_id)
+                ev_id = str(uuid.uuid4())
+                filename = f"smoking_{ev_id}.mp4"
+                abs_path = os.path.join(VIDEO_ROOT_DIR, filename)
+                rel_path = f"/static/events/{filename}"
+
+                # Init VideoWriter
+                writer = cv2.VideoWriter(abs_path, cv2.VideoWriter_fourcc(*'avc1'), VIDEO_FPS, (W, H))
+                
+                # Write Pre-buffer (frames before event)
+                if camera_id in frame_buffers:
+                    for old_frame in list(frame_buffers[camera_id]):
+                        writer.write(old_frame)
+
+                # Create Event in DB
+                event = {
+                    "id": ev_id,
+                    "label": "smoking",
+                    "method": "iou_pose",
+                    "time": datetime.now().isoformat(),
+                    "bbox": detected_bbox,
+                    "name": person_info[0],
+                    "person_id": person_info[1],
+                    "camera_id": camera_id,
+                    "area_id": area_id,
+                    "area_name": get_area_name(area_id),
+                    "image_url": None,
+                    "video_url": None # Will update when finished
+                }
+
+                # Save Thumbnail
+                thumb_crop = frame.copy()
+                if detected_bbox:
+                    bx1, by1, bx2, by2 = detected_bbox
+                    cv2.rectangle(thumb_crop, (bx1, by1), (bx2, by2), (0, 0, 255), 2)
+                    draw_label_with_bg(thumb_crop, "SMOKING", (bx1, by1))
+                
+                # Convert to Base64 for realtime UI
+                _, buf = cv2.imencode(".jpg", thumb_crop)
+                b64_img = f"data:image/jpeg;base64,{base64.b64encode(buf).decode('utf-8')}"
+                event["image_url"] = b64_img
+
+                # Save to DB & Broadcast
+                save_event_to_db(event)
+                event_broadcast_queue.put(event)
+                
+                # Audio Alert
+                try:
+                    area_cfg = CURRENT_CONFIG.get("areas", {}).get(str(area_id), {})
+                    if area_cfg.get("linkage", {}).get("normal", {}).get("audibleWarning", False):
+                        play_audio_alarm()
+                except: pass
+
+                # Init Recorder State
+                recorders[camera_id] = {
+                    "writer": writer,
+                    "event_id": ev_id,
+                    "last_seen": now,
+                    "file_path": rel_path
+                }
+                print(f"🎥 [REC START] Smoking detected on Cam {camera_id}")
+
+            else:
+                # CONTINUING RECORDING
+                recorders[camera_id]["last_seen"] = now # Reset timeout
+                
+                # Write current frame (with bounding box)
+                frame_write = frame.copy()
+                if detected_bbox:
+                    bx1, by1, bx2, by2 = detected_bbox
+                    cv2.rectangle(frame_write, (bx1, by1), (bx2, by2), (0, 0, 255), 2)
+                recorders[camera_id]["writer"].write(frame_write)
+
+        else:
+            # >>> CASE 2: NO DETECTION <<<
+            if camera_id in recorders:
+                # Check Post-buffer time
+                if now - recorders[camera_id]["last_seen"] > POST_EVENT_BUFFER:
+                    # STOP RECORDING
+                    rec_data = recorders.pop(camera_id)
+                    rec_data["writer"].release()
+                    
+                    # Update DB with video path
+                    update_event_media(rec_data["event_id"], video_url=rec_data["file_path"])
+                    print(f"🛑 [REC STOP] Smoking ended on Cam {camera_id}. Video saved.")
+                else:
+                    # Within buffer time -> Keep recording
+                    recorders[camera_id]["writer"].write(frame)
+
+
+# ==========================================
+# 2. UPDATED PERSON DETECTION THREAD
+# ==========================================
 def person_detection_thread(yolo_model):
-
-    print("[PERSON] Thread running...")
-
-    last_trigger = {}  # tránh spam
-
+    """
+    Detects Person: Records continuously when a person is in the area.
+    """
+    print("[PERSON] Thread running with Dynamic Recording...")
+    
+    recorders = {} 
+    
     while True:
         try:
             camera_id, frame = person_queue.get(timeout=1)
@@ -1408,149 +1914,134 @@ def person_detection_thread(yolo_model):
             continue
 
         H, W = frame.shape[:2]
+        now = time.time()
+        is_person_present = False
+        best_bbox = None
+        person_name_detect = "Unknown"
+        person_id_detect = None
 
-        # ============================
-        # 1️⃣ YOLO DETECT
-        # ============================
+        # --- A. DETECTION LOGIC ---
         try:
             result = yolo_model(frame, verbose=False)[0]
+            if result.boxes is not None:
+                boxes = result.boxes.xyxy.cpu().numpy()
+                classes = result.boxes.cls.cpu().numpy()
+                
+                area_id = get_area_by_camera(camera_id)
+
+                if area_id and is_event_enabled(area_id, "person_detection") and is_event_allowed(area_id, "person_detection"):
+                    draw_areas = get_draw_areas_for_area(area_id)
+
+                    for box, cls_id in zip(boxes, classes):
+                        if int(cls_id) == 0: # Class 0 = Person
+                            x1, y1, x2, y2 = map(int, box[:4])
+                            
+                            # Check Draw Areas
+                            if draw_areas and len(draw_areas) > 0:
+                                if not bbox_overlaps_any((x1, y1, x2, y2), draw_areas, W, H, min_fraction=0.05):
+                                    continue 
+                            
+                            is_person_present = True
+                            best_bbox = [x1, y1, x2, y2]
+
+                            # Face Match
+                            with face_lock:
+                                for face in face_results:
+                                    if face.get("camera_id") == camera_id:
+                                        top, right, bottom, left = face["loc"]
+                                        if calc_iou((x1, y1, x2, y2), (left, top, right, bottom)) > 0.2:
+                                            person_name_detect = face.get("name", "Unknown")
+                                            person_id_detect = face.get("person_id")
+                                            break
+                            break # Found at least 1 person, trigger recording
         except Exception as e:
-            print("❌ YOLO Person detect failed:", e)
-            continue
+            print(f"[PERSON DETECT ERROR] {e}")
 
-        if result.boxes is None:
-            continue
+        # --- B. RECORDING STATE MACHINE ---
+        if is_person_present:
+            # >>> CASE 1: PERSON DETECTED <<<
+            if camera_id not in recorders:
+                # START RECORDING
+                ev_id = str(uuid.uuid4())
+                filename = f"person_{ev_id}.mp4"
+                abs_path = os.path.join(VIDEO_ROOT_DIR, filename)
+                rel_path = f"/static/events/{filename}"
 
-        boxes = result.boxes.xyxy.cpu().numpy()
-        classes = result.boxes.cls.cpu().numpy()
-        ids = result.boxes.id.cpu().numpy() if result.boxes.id is not None else [None] * len(boxes)
+                writer = cv2.VideoWriter(abs_path, cv2.VideoWriter_fourcc(*'avc1'), VIDEO_FPS, (W, H))
+                
+                # Pre-buffer
+                if camera_id in frame_buffers:
+                    for old_f in list(frame_buffers[camera_id]):
+                        writer.write(old_f)
 
-        # ============================
-        # 2️⃣ LOOP TỪNG BOUNDING BOX
-        # ============================
-        for box, cls_id, tid in zip(boxes, classes, ids):
+                # Create Event
+                event = {
+                    "id": ev_id,
+                    "label": "person_detection",
+                    "method": "object",
+                    "time": datetime.now().isoformat(),
+                    "bbox": best_bbox,
+                    "name": person_name_detect,
+                    "person_id": person_id_detect,
+                    "camera_id": camera_id,
+                    "area_id": area_id,
+                    "area_name": get_area_name(area_id),
+                    "image_url": None,
+                    "video_url": None
+                }
 
-            # Chỉ lấy class 'person'
-            if int(cls_id) != 0:
-                continue
+                # Thumbnail Base64
+                thumb_img = frame.copy()
+                if best_bbox:
+                    bx1, by1, bx2, by2 = best_bbox
+                    cv2.rectangle(thumb_img, (bx1, by1), (bx2, by2), (0, 255, 0), 2)
+                
+                _, buf = cv2.imencode(".jpg", thumb_img)
+                b64_img = f"data:image/jpeg;base64,{base64.b64encode(buf).decode('utf-8')}"
+                event["image_url"] = b64_img 
+                
+                save_event_to_db(event)
+                event_broadcast_queue.put(event)
 
-            # Nếu không có tracking ID → tạo ID giả
-            if tid is None:
-                tid = int(time.time() * 1000)
+                # Alarm
+                try:
+                    area_cfg = CURRENT_CONFIG.get("areas", {}).get(str(area_id), {})
+                    if area_cfg.get("linkage", {}).get("normal", {}).get("audibleWarning", False):
+                        play_audio_alarm()
+                except: pass
 
-            tid = int(tid)
+                recorders[camera_id] = {
+                    "writer": writer,
+                    "event_id": ev_id,
+                    "last_seen": now,
+                    "file_path": rel_path
+                }
+                print(f"🧍 [REC START] Person detected on Cam {camera_id}")
 
-            x1, y1, x2, y2 = map(int, box[:4])
-            now = time.time()
+            else:
+                # CONTINUE RECORDING
+                recorders[camera_id]["last_seen"] = now
+                
+                frame_write = frame.copy()
+                if best_bbox:
+                     bx1, by1, bx2, by2 = best_bbox
+                     cv2.rectangle(frame_write, (bx1, by1), (bx2, by2), (0, 255, 0), 2)
+                
+                recorders[camera_id]["writer"].write(frame_write)
 
-            # Cooldown tránh spam liên tục
-            if now - last_trigger.get(tid, 0) < COOLDOWN:
-                continue
-
-            # ============================
-            # 3️⃣ Lấy area theo camera
-            # ============================
-            area_id = get_area_by_camera(camera_id)
-            if not area_id:
-                print(f"🚫[PERSON] Không tìm thấy khu vực cho camera {camera_id}")
-                continue
-
-            # ============================
-            # 4️⃣ Check cấu hình sự kiện
-            # ============================
-            if not is_event_enabled(area_id, "person_detection"):
-                print(f"⛔ Sự kiện person_detection bị tắt tại area {area_id}")
-                continue
-
-            if not is_event_allowed(area_id, "person_detection"):
-                print(f"⏳ Ngoài giờ cho phép person_detection tại area {area_id}")
-                continue
-
-            # ============================
-            # 5️⃣ Kiểm tra vùng vẽ
-            # ============================
-            draw_areas = get_draw_areas_for_area(area_id)
-
-            if draw_areas and len(draw_areas) > 0:
-                if not bbox_overlaps_any((x1, y1, x2, y2), draw_areas, W, H, min_fraction=0.05):
-                    print(f"⚠️ Bỏ qua bbox ngoài vùng vẽ tại area {area_id}")
-                    continue
-
-            person_name, person_id = "Unknown", None
-
-            # ============================
-            # 6️⃣ Ghép với face recognition (nếu có)
-            # ============================
-            with face_lock:
-                frs = face_results.copy()
-
-            for face in frs:
-                top, right, bottom, left = face["loc"]
-                if calc_iou((x1, y1, x2, y2), (left, top, right, bottom)) > 0.2:
-                    person_name = face.get("name", "Unknown")
-                    person_id = face.get("person_id")
-                    break
-
-            # ============================
-            # 7️⃣ Tạo EVENT
-            # ============================
-            ev_id = str(uuid.uuid4())
-
-            event = {
-                "id": ev_id,
-                "label": "person_detection",
-                "method": "object",
-                "time": datetime.now().isoformat(),
-                "bbox": [x1, y1, x2, y2],
-                "name": person_name,
-                "person_id": person_id,
-                "camera_id": camera_id,
-                "area_id": area_id,
-                "area_name": get_area_name(area_id),
-                "image_url": None,
-                "video_url": None,
-            }
-
-            # =====================================================
-            # 8️⃣ KHÔNG LƯU LOCAL — TRẢ ẢNH BASE64 LÊN FRONTEND
-            # =====================================================
-            crop = frame[y1:y2, x1:x2]
-
-            try:
-                _, buffer = cv2.imencode(".jpg", crop)
-                img_base64 = base64.b64encode(buffer).decode("utf-8")
-                event["image_url"] = f"data:image/jpeg;base64,{img_base64}"
-            except Exception as e:
-                print("[BASE64 ERROR]", e)
-                event["image_url"] = None
-
-            # Lưu DB (có image_url = base64)
-            save_event_to_db(event)
-
-            # ============================
-            # 9️⃣ Gửi SSE về frontend
-            # ============================
-            event_broadcast_queue.put(event)
-
-            print(f"🧍 [PERSON DETECT] {person_name} – Camera {camera_id}")
-
-            # ============================
-            # 🔟 Phát âm thanh cảnh báo (nếu bật)
-            # ============================
-            try:
-                area_cfg = CURRENT_CONFIG.get("areas", {}).get(str(camera_id), {})
-                linkage = area_cfg.get("linkage", {})
-                normal_linkage = linkage.get("normal", {})
-
-                if normal_linkage.get("audibleWarning", False):
-                    play_audio_alarm()
-                    print(f"🔊 [ALERT] Phát âm thanh cảnh báo person tại camera {camera_id}")
-            except Exception as e:
-                print("[ALERT AUDIO ERROR]", e)
-
-            # Cập nhật cooldown
-            last_trigger[tid] = now
-
+        else:
+            # >>> CASE 2: NO PERSON <<<
+            if camera_id in recorders:
+                if now - recorders[camera_id]["last_seen"] > POST_EVENT_BUFFER:
+                    # STOP RECORDING
+                    rec_data = recorders.pop(camera_id)
+                    rec_data["writer"].release()
+                    
+                    update_event_media(rec_data["event_id"], video_url=rec_data["file_path"])
+                    print(f"🛑 [REC STOP] Person left Cam {camera_id}. Video saved.")
+                else:
+                    # BUFFERING
+                    recorders[camera_id]["writer"].write(frame)
 # scan QR
 def qr_detection_thread():
     last_qr_time = {}
@@ -1651,7 +2142,6 @@ DEFAULT_EVENTS = {
 def load_config():
     """Đọc file config.json"""
     if not os.path.exists(CONFIG_FILE):
-        # ✅ Nếu file chưa tồn tại — tạo mới với cấu hình mặc định
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(CURRENT_CONFIG, f, indent=2, ensure_ascii=False)
         return CURRENT_CONFIG
@@ -1659,7 +2149,6 @@ def load_config():
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         cfg = json.load(f)
 
-    # ✅ Nếu thiếu trường "events" thì thêm mặc định
     if "events" not in cfg:
         cfg["events"] = {
             "face_recognition": True,
@@ -1771,7 +2260,7 @@ def api_play_audio_alarm():
 @app.route('/static/events/<path:filename>')
 def serve_event_media(filename):
     """Phục vụ file ảnh/video trong thư mục static/events."""
-    events_dir = os.path.join(os.path.dirname(__file__), "static", "events")  # <-- thay os.getcwd()
+    events_dir = os.path.join(os.getcwd(), "static", "events")  # <-- thay os.getcwd()
     file_path = os.path.join(events_dir, filename)
     if not os.path.exists(file_path):
         print(f"[ERROR] File not found: {file_path}")
@@ -1811,7 +2300,8 @@ def get_camera_events(camera_id):
             "id": r[0],
             "label": r[1],
             "time": r[2].isoformat(),
-            "video_url": f"http://localhost:5000{r[3]}" if r[3] and r[3].startswith("/static/") else r[3],
+            "video_url": r[3] if r[3].startswith("http") else f"http://localhost:5000{r[3]}", 
+            # f"http://localhost:5000{r[3]}" if r[3] and r[3].startswith("/static/") else r[3],
             "image_url": r[4],
             "camera_id": r[5],
             "start_time": r[6].isoformat() if r[6] else None,
@@ -3254,6 +3744,28 @@ def process_and_encode_frame(frame, cam_id):
                 + buf.tobytes() + b'\r\n')
     return b''
 
+#  kiểm tra đã thực hiện record chưa
+def recorder_thread():
+    while True:
+        for cam_id, rec in recorders.items():
+            if rec["is_recording"]:
+                # Nếu 2 giây không detect nữa → stop recording
+                if time.time() - rec["last_detect_time"] > 2:
+                    print(f"[REC] Stop recording cam {cam_id}")
+
+                    rec["is_recording"] = False
+                    if rec["writer"]:
+                        rec["writer"].release()
+                        rec["writer"] = None
+
+                    # cập nhật vào database
+                    update_event_media(
+                        rec["event_id"],
+                        video_url="/" + rec["path"]
+                    )
+
+        time.sleep(0.2)
+
 # ---------------- Main ----------------
 def load_event_log():
     global EVENTS
@@ -3311,15 +3823,6 @@ def main():
     conn = get_conn()
     with conn:
         with conn.cursor() as cur:
-            # cur.execute("SELECT camera_id, rtsp_url FROM cameras ORDER BY camera_id")
-            # for cid, rtsp in rows:
-            #     if rtsp:
-            #         cam = CameraThread(camera_id=cid, src=rtsp)
-            #         cameras[cid] = cam
-            #         camera_queues[cid] = queue.Queue(maxsize=1)
-            #         frame_buffers[cid] = deque(maxlen=VIDEO_BUFFER_SECONDS * VIDEO_FPS)
-            #         cam.start()
-            #         print(f"[MAIN] Started camera {cid}")
             cur.execute("SELECT camera_id, rtsp_url, status FROM cameras ORDER BY camera_id")
             rows = cur.fetchall()
 
@@ -3339,9 +3842,7 @@ def main():
     # start worker threads
     threading.Thread(target=save_worker, daemon=True).start()
     threading.Thread(target=recognition_thread, daemon=True).start()
-    # threading.Thread(target=hand2mouth_thread, args=(pose_yolo,), daemon=True).start()
-    # threading.Thread(target=cigarette_thread, args=(pose_yolo, cig_yolo), daemon=True).start()
-    
+
     if yolo_person_model:
         threading.Thread(
             target=person_detection_thread,
@@ -3355,6 +3856,8 @@ def main():
         threading.Thread(target=cigarette_thread, args=(pose_yolo, cig_yolo, lstm_model, scaler, lbl_map), daemon=True).start()
 
     threading.Thread(target=qr_detection_thread, daemon=True).start()
+
+    threading.Thread(target=recorder_thread, daemon=True).start()
 
     app.run(host="0.0.0.0", port=5000, threaded=True, use_reloader=False, debug=False)
 
@@ -3373,4 +3876,3 @@ if __name__ == "__main__":
         print(f"[FATAL] ❌ Server crashed: {e}")
         import traceback
         traceback.print_exc()
-
